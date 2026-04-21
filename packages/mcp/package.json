@@ -1,0 +1,48 @@
+{
+  "name": "@px402/mcp",
+  "version": "0.0.1",
+  "description": "MCP server that lets Claude pay for APIs via px402",
+  "license": "MIT",
+  "author": "Allen Saji <allensaji04@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Allen-Saji/px402.git",
+    "directory": "packages/mcp"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "px402-mcp": "./bin/px402-mcp.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "bin",
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "tsx src/bin.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@px402/client": "workspace:*",
+    "@solana/web3.js": "^1.95.8",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
