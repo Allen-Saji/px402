@@ -22,7 +22,9 @@ const input = {
 describe("createPaymentToken", () => {
   it("returns {paymentId, token, expiry}", () => {
     const out = createPaymentToken(cfg, input);
-    expect(out.paymentId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    // paymentId is now a decimal-string u63
+    expect(out.paymentId).toMatch(/^\d+$/);
+    expect(BigInt(out.paymentId)).toBeLessThan(1n << 63n);
     expect(out.token.split(".")).toHaveLength(3);
     expect(out.expiry).toBeGreaterThan(Date.now());
   });
@@ -51,7 +53,7 @@ describe("verifyPaymentToken", () => {
     expect(payload.amount).toBe(input.amount);
     expect(payload.path).toBe(input.path);
     expect(payload.destination).toBe(input.destination);
-    expect(payload.paymentId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(payload.paymentId).toMatch(/^\d+$/);
   });
 
   it("rejects malformed token", () => {

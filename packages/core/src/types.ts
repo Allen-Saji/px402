@@ -1,5 +1,8 @@
 export interface PaymentTokenPayload {
-  /** ULID, matches memo on the PER transfer. */
+  /**
+   * Decimal-string integer. Sent as `clientRefId` on the MagicBlock private
+   * transfer and logged by the crank. Must fit in a u64.
+   */
   paymentId: string;
   /** Amount in the smallest USDC unit (micro-USDC). Integer string. */
   amount: string;
@@ -7,7 +10,7 @@ export interface PaymentTokenPayload {
   expiry: number;
   /** Request path the token was issued for. */
   path: string;
-  /** Server's PER ATA the payment is destined for. */
+  /** Server's wallet pubkey. This is what the agent pays `to` via the API. */
   destination: string;
 }
 
@@ -20,8 +23,6 @@ export interface SecretConfig {
 export interface Px402CoreConfig {
   /** HMAC secret. String (single key) or {current, previous?} for rotation. */
   serverSecret: string | SecretConfig;
-  /** Server's PER ATA that receives payments. */
-  destination: string;
   /** Path -> amount-in-micro-USDC (integer). */
   pricing: Record<string, string>;
   /** Token TTL. Default 5 min. */

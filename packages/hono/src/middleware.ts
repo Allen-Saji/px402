@@ -23,12 +23,11 @@ export function px402(config: Px402HonoConfig): MiddlewareHandler {
   const limiter = new RateLimiter(config.rateLimit ?? {});
   const network = config.network ?? DEFAULT_NETWORK;
   const currency = config.currency ?? DEFAULT_CURRENCY;
+  const paymentAddress = config.paymentAddress;
 
   return async (c, next) => {
     const path = normalizePath(c.req.path);
     const price = config.pricing[path];
-
-    // Paths without a configured price are free.
     if (!price) return next();
 
     const paymentId = c.req.header(HEADER_PAYMENT_ID);
@@ -38,14 +37,7 @@ export function px402(config: Px402HonoConfig): MiddlewareHandler {
     if (!paymentId || !paymentToken) {
       const gate = limiter.checkIssue(ip);
       if (!gate.ok) return rateLimited(c, gate.retryAfterMs);
-      return issue402(c, {
-        amount: price,
-        destination: config.destination,
-        path,
-        network,
-        currency,
-        config,
-      });
+      return issue402(c, { amount: price, paymentAddress, path, network, currency, config });
     }
 
     let payload;
@@ -57,7 +49,7 @@ export function px402(config: Px402HonoConfig): MiddlewareHandler {
         if (!gate.ok) return rateLimited(c, gate.retryAfterMs);
         return issue402(c, {
           amount: price,
-          destination: config.destination,
+          paymentAddress,
           path,
           network,
           currency,
@@ -80,7 +72,7 @@ export function px402(config: Px402HonoConfig): MiddlewareHandler {
     if (payload.amount !== price) {
       return c.json({ error: "amount_changed" }, 401);
     }
-    if (payload.destination !== config.destination) {
+    if (payload.destination !== paymentAddress) {
       return c.json({ error: "destination_mismatch" }, 401);
     }
 
@@ -106,11 +98,7 @@ export function px402(config: Px402HonoConfig): MiddlewareHandler {
 
       case "amount_mismatch":
         return c.json(
-          {
-            error: "amount_mismatch",
-            expected: outcome.expected,
-            actual: outcome.actual,
-          },
+          { error: "amount_mismatch", expected: outcome.expected, actual: outcome.actual },
           402,
         );
 
@@ -131,7 +119,7 @@ export function px402(config: Px402HonoConfig): MiddlewareHandler {
 
 interface Issue402Input {
   amount: string;
-  destination: string;
+  paymentAddress: string;
   path: string;
   network: string;
   currency: string;
@@ -142,14 +130,14 @@ interface Issue402Input {
 function issue402(c: import("hono").Context, input: Issue402Input) {
   const { paymentId, token, expiry } = createPaymentToken(input.config, {
     path: input.path,
-    destination: input.destination,
+    destination: input.paymentAddress,
     amount: input.amount,
   });
 
   c.header(headerCase(HEADER_AMOUNT), input.amount);
   c.header(headerCase(HEADER_CURRENCY), input.currency);
   c.header(headerCase(HEADER_NETWORK), input.network);
-  c.header(headerCase(HEADER_ADDRESS), input.destination);
+  c.header(headerCase(HEADER_ADDRESS), input.paymentAddress);
   c.header(headerCase(HEADER_PAYMENT_ID), paymentId);
   c.header(headerCase(HEADER_PAYMENT_TOKEN), token);
 
@@ -160,7 +148,7 @@ function issue402(c: import("hono").Context, input: Issue402Input) {
       amount: input.amount,
       currency: input.currency,
       network: input.network,
-      destination: input.destination,
+      destination: input.paymentAddress,
       paymentId,
       expiry,
     },

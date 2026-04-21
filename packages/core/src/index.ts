@@ -21,16 +21,20 @@ export {
 
 export {
   verifyPayment,
-  type VerifiedMemoPayment,
+  type VerifiedTickRecord,
   type VerifierDeps,
 } from "./verify.js";
 
 export { RateLimiter, type LimitDecision } from "./rate-limit.js";
 
 export {
-  PerSubscriber,
+  PrivateTransferSubscriber,
   type SubscriberConfig,
   type SubscriberEvents,
+  type TickEvent,
+  type VerifiedTick,
 } from "./subscribe.js";
 
 export { createFetchAmount, type FetchAmountConfig } from "./fetch-amount.js";
+
+export { deriveQueuePda, deriveEphemeralAta, SPL_PP_PROGRAM_ID } from "./pda.js";

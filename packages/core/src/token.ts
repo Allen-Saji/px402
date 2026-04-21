@@ -1,5 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import { ulid } from "ulidx";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   ExpiredTokenError,
   InvalidTokenError,
@@ -32,6 +31,19 @@ function normalizeSecret(secret: string | SecretConfig): SecretConfig {
   return typeof secret === "string" ? { current: secret } : secret;
 }
 
+/**
+ * Generate a u63 decimal-string identifier suitable for MagicBlock's
+ * `clientRefId` field. Using 63 bits keeps us safely inside JS Number and
+ * well inside u64 while still giving 9e18 possible values per process.
+ */
+function generateClientRefId(): string {
+  const buf = randomBytes(8);
+  // Clear the top bit so the result fits in a signed 64-bit range and avoids
+  // any risk of tripping sign-sensitive decoders downstream.
+  buf[0] = (buf[0] as number) & 0x7f;
+  return BigInt("0x" + buf.toString("hex")).toString();
+}
+
 export interface CreateTokenInput {
   path: string;
   destination: string;
@@ -60,7 +72,7 @@ export function createPaymentToken(
   const secret = normalizeSecret(config.serverSecret);
   const now = input.now ?? Date.now();
   const ttl = input.ttlMs ?? config.tokenTtlMs ?? DEFAULT_TTL_MS;
-  const paymentId = ulid(now);
+  const paymentId = generateClientRefId();
 
   const payload: PaymentTokenPayload = {
     paymentId,

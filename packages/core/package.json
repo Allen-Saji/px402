@@ -34,7 +34,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ulidx": "^2.4.1",
+    "@solana/web3.js": "^1.95.8",
     "ws": "^8.18.0",
     "zod": "^3.24.1"
   },

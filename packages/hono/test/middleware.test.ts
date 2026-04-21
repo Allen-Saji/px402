@@ -1,18 +1,18 @@
-import type { VerifiedMemoPayment } from "@px402/core";
+import type { VerifiedTickRecord } from "@px402/core";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { px402 } from "../src/middleware.js";
 import type { SubscriberLike } from "../src/types.js";
 
-const DESTINATION = "3PkQ4JM6WWWEpxoaQtFczYgn47ZkMmdFWySSBfGVVh6v";
+const PAYMENT_ADDRESS = "8AxCJeRrtfwNVQ5huVoF9cto7Y4Jvw6bP1TUUs2ZnK56";
 const PRICE = "10000"; // 0.01 USDC micro-units
 
 class FakeSubscriber implements SubscriberLike {
-  public memoMap = new Map<string, VerifiedMemoPayment>();
+  public index = new Map<string, VerifiedTickRecord>();
   public usedSignatures = new Set<string>();
 
-  lookupByMemo(memo: string): VerifiedMemoPayment | undefined {
-    return this.memoMap.get(memo);
+  lookupByClientRefId(clientRefId: string): VerifiedTickRecord | undefined {
+    return this.index.get(clientRefId);
   }
 
   markSignatureUsed(signature: string): boolean {
@@ -29,7 +29,7 @@ function buildApp(overrides: Partial<Parameters<typeof px402>[0]> = {}) {
     "*",
     px402({
       serverSecret: "test-secret",
-      destination: DESTINATION,
+      paymentAddress: PAYMENT_ADDRESS,
       pricing: { "/api/sentiment": PRICE },
       subscriber,
       ...overrides,
@@ -54,8 +54,8 @@ describe("px402 hono middleware", () => {
     expect(res.headers.get("X-Payment-Amount")).toBe(PRICE);
     expect(res.headers.get("X-Payment-Currency")).toBe("USDC");
     expect(res.headers.get("X-Payment-Network")).toBe("solana-per");
-    expect(res.headers.get("X-Payment-Address")).toBe(DESTINATION);
-    expect(res.headers.get("X-Payment-Id")).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(res.headers.get("X-Payment-Address")).toBe(PAYMENT_ADDRESS);
+    expect(res.headers.get("X-Payment-Id")).toMatch(/^\d+$/);
     expect(res.headers.get("X-Payment-Token")?.split(".")).toHaveLength(3);
   });
 
@@ -65,7 +65,12 @@ describe("px402 hono middleware", () => {
     const paymentId = res1.headers.get("X-Payment-Id")!;
     const token = res1.headers.get("X-Payment-Token")!;
 
-    subscriber.memoMap.set(paymentId, { signature: "sigXYZ", amount: PRICE });
+    subscriber.index.set(paymentId, {
+      signature: "sigXYZ",
+      sender: "agent",
+      receiver: PAYMENT_ADDRESS,
+      amount: PRICE,
+    });
 
     const res2 = await app.request("/api/sentiment", {
       headers: {
@@ -99,7 +104,12 @@ describe("px402 hono middleware", () => {
     const paymentId = res1.headers.get("X-Payment-Id")!;
     const token = res1.headers.get("X-Payment-Token")!;
 
-    subscriber.memoMap.set(paymentId, { signature: "sigABC", amount: "5000" });
+    subscriber.index.set(paymentId, {
+      signature: "sigABC",
+      sender: "agent",
+      receiver: PAYMENT_ADDRESS,
+      amount: "5000",
+    });
 
     const res2 = await app.request("/api/sentiment", {
       headers: { "X-Payment-Id": paymentId, "X-Payment-Token": token },
@@ -117,7 +127,12 @@ describe("px402 hono middleware", () => {
     const res1 = await app.request("/api/sentiment");
     const paymentId1 = res1.headers.get("X-Payment-Id")!;
     const token1 = res1.headers.get("X-Payment-Token")!;
-    subscriber.memoMap.set(paymentId1, { signature: "sameSig", amount: PRICE });
+    subscriber.index.set(paymentId1, {
+      signature: "sameSig",
+      sender: "agent",
+      receiver: PAYMENT_ADDRESS,
+      amount: PRICE,
+    });
     const ok = await app.request("/api/sentiment", {
       headers: { "X-Payment-Id": paymentId1, "X-Payment-Token": token1 },
     });
@@ -127,7 +142,12 @@ describe("px402 hono middleware", () => {
     const res2 = await app.request("/api/sentiment");
     const paymentId2 = res2.headers.get("X-Payment-Id")!;
     const token2 = res2.headers.get("X-Payment-Token")!;
-    subscriber.memoMap.set(paymentId2, { signature: "sameSig", amount: PRICE });
+    subscriber.index.set(paymentId2, {
+      signature: "sameSig",
+      sender: "agent",
+      receiver: PAYMENT_ADDRESS,
+      amount: PRICE,
+    });
     const replay = await app.request("/api/sentiment", {
       headers: { "X-Payment-Id": paymentId2, "X-Payment-Token": token2 },
     });
@@ -168,7 +188,12 @@ describe("px402 hono middleware", () => {
     const token = res1.headers.get("X-Payment-Token")!;
 
     await new Promise((r) => setTimeout(r, 5));
-    subscriber.memoMap.set(paymentId, { signature: "late", amount: PRICE });
+    subscriber.index.set(paymentId, {
+      signature: "late",
+      sender: "agent",
+      receiver: PAYMENT_ADDRESS,
+      amount: PRICE,
+    });
 
     const res2 = await app.request("/api/sentiment", {
       headers: { "X-Payment-Id": paymentId, "X-Payment-Token": token },
@@ -176,7 +201,7 @@ describe("px402 hono middleware", () => {
     expect(res2.status).toBe(402);
     const body = (await res2.json()) as Record<string, unknown>;
     expect(body.reason).toBe("expired");
-    expect(res2.headers.get("X-Payment-Id")).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(res2.headers.get("X-Payment-Id")).toMatch(/^\d+$/);
     expect(res2.headers.get("X-Payment-Id")).not.toBe(paymentId);
   });
 
@@ -188,7 +213,12 @@ describe("px402 hono middleware", () => {
     const res1 = await app.request("/api/sentiment");
     const paymentId = res1.headers.get("X-Payment-Id")!;
     const token = res1.headers.get("X-Payment-Token")!;
-    subscriber.memoMap.set(paymentId, { signature: "sigZ", amount: PRICE });
+    subscriber.index.set(paymentId, {
+      signature: "sigZ",
+      sender: "agent",
+      receiver: PAYMENT_ADDRESS,
+      amount: PRICE,
+    });
     await app.request("/api/sentiment", {
       headers: { "X-Payment-Id": paymentId, "X-Payment-Token": token },
     });
@@ -211,8 +241,18 @@ describe("px402 hono middleware", () => {
     const tokB = resB1.headers.get("X-Payment-Token")!;
     expect(idA).not.toBe(idB);
 
-    subscriber.memoMap.set(idA, { signature: "sigA", amount: PRICE });
-    subscriber.memoMap.set(idB, { signature: "sigB", amount: PRICE });
+    subscriber.index.set(idA, {
+      signature: "sigA",
+      sender: "agent",
+      receiver: PAYMENT_ADDRESS,
+      amount: PRICE,
+    });
+    subscriber.index.set(idB, {
+      signature: "sigB",
+      sender: "agent",
+      receiver: PAYMENT_ADDRESS,
+      amount: PRICE,
+    });
 
     const [okA, okB] = await Promise.all([
       app.request("/api/sentiment", {
