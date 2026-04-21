@@ -2,7 +2,7 @@
 
 Private-payment extension of the [x402](https://github.com/coinbase/x402) protocol. Agents pay for APIs with USDC on Solana, routed through MagicBlock's Private Ephemeral Rollups so the recipient (and therefore which API the agent consumed) stays hidden.
 
-**Status:** pre-alpha. Built for Colosseum Frontier (MagicBlock Privacy Track, deadline 2026-05-12). End-to-end verified on devnet: a `fetch()` call against a px402-gated endpoint returns a 200 in roughly four seconds, including the base-chain payment, TEE decryption, queue crank, and server-side verify.
+**Status:** pre-alpha. End-to-end verified on devnet: a `fetch()` call against a px402-gated endpoint returns a 200 in roughly four seconds, including the base-chain payment, TEE decryption, queue crank, and server-side verify.
 
 ## How it works
 
