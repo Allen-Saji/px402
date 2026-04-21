@@ -41,14 +41,16 @@ describe("PaymentsApi request shape", () => {
     expect((init as RequestInit).method).toBe("POST");
     const body = JSON.parse((init as RequestInit).body as string);
     expect(body).toMatchObject({
-      destination: "DEST",
+      to: "DEST",
       amount: 50,
       mint: MINT,
       cluster: "devnet",
-      privacy: "private",
+      visibility: "private",
+      fromBalance: "ephemeral",
+      toBalance: "ephemeral",
       memo: "01MEMO",
     });
-    expect(typeof body.owner).toBe("string");
+    expect(typeof body.from).toBe("string");
   });
 
   it("transfer omits memo when not provided", async () => {

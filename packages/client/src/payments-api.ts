@@ -57,12 +57,14 @@ export class PaymentsApi {
     memo?: string;
   }): Promise<string> {
     const body = {
-      owner: this.cfg.wallet.publicKey.toBase58(),
-      destination: opts.destination,
+      from: this.cfg.wallet.publicKey.toBase58(),
+      to: opts.destination,
       amount: toSafeInt(opts.amount),
       mint: this.cfg.mint,
       cluster: this.cfg.cluster,
-      privacy: this.cfg.privacy,
+      visibility: this.cfg.privacy,
+      fromBalance: "ephemeral",
+      toBalance: "ephemeral",
       ...(opts.memo ? { memo: opts.memo } : {}),
     };
     const built = await this.postBuild("/v1/spl/transfer", body);
@@ -126,7 +128,10 @@ export class PaymentsApi {
     const connection = new Connection(rpcUrl, "confirmed");
 
     const signature = await connection.sendRawTransaction(tx.serialize(), {
-      skipPreflight: false,
+      // Preflight fails on ER for private transfers due to account-delegation
+      // semantics the simulator doesn't model; the real ER runtime checks
+      // delegation post-submit. Surface errors via getTransaction instead.
+      skipPreflight: true,
       maxRetries: 3,
     });
 
