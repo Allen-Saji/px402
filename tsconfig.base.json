@@ -23,6 +23,9 @@
       "@px402/core": ["packages/core/src/index.ts"],
       "@px402/core/*": ["packages/core/src/*"],
       "@px402/hono": ["packages/hono/src/index.ts"],
+      "@px402/express": ["packages/express/src/index.ts"],
+      "@px402/next": ["packages/next/src/index.ts"],
+      "@px402/mcp": ["packages/mcp/src/index.ts"],
       "@px402/client": ["packages/client/src/index.ts"]
     }
   }

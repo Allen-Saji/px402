@@ -1,0 +1,45 @@
+{
+  "name": "@px402/express",
+  "version": "0.0.1",
+  "description": "Express middleware for px402 private agent payments",
+  "license": "MIT",
+  "author": "Allen Saji <allensaji04@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Allen-Saji/px402.git",
+    "directory": "packages/express"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@px402/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "express": ">=4.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "express": "^4.21.2"
+  }
+}
