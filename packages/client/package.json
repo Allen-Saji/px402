@@ -33,7 +33,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.95.8"
+    "@solana/web3.js": "^1.95.8",
+    "tweetnacl": "^1.0.3"
   },
   "peerDependencies": {
     "@px402/core": "workspace:*"

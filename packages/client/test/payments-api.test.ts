@@ -13,7 +13,9 @@ function buildApi(fetchMock: ReturnType<typeof vi.fn>) {
     baseRpcUrl: "https://base.test",
     ephemeralRpcUrl: "https://er.test",
     cluster: "devnet",
-    privacy: "private",
+    visibility: "private",
+    fromBalance: "ephemeral",
+    toBalance: "ephemeral",
     fetch: fetchMock as unknown as typeof fetch,
   });
 }
@@ -49,6 +51,9 @@ describe("PaymentsApi request shape", () => {
       fromBalance: "ephemeral",
       toBalance: "ephemeral",
       memo: "01MEMO",
+      initIfMissing: true,
+      initAtasIfMissing: true,
+      initVaultIfMissing: true,
     });
     expect(typeof body.from).toBe("string");
   });
@@ -111,18 +116,6 @@ describe("PaymentsApi request shape", () => {
     expect(u.searchParams.get("address")).toBeTruthy();
   });
 
-  it("privateBalance GETs /v1/spl/private-balance", async () => {
-    const fetchMock = vi.fn(
-      async (_input: string | URL, _init?: RequestInit) =>
-        okResponse({ balance: "500000", decimals: 6 }),
-    );
-    const api = buildApi(fetchMock);
-    const result = await api.privateBalance();
-    expect(result).toMatchObject({ amount: "500000", decimals: 6 });
-    const [url] = fetchMock.mock.calls[0]!;
-    expect(new URL(String(url)).pathname).toBe("/v1/spl/private-balance");
-  });
-
   it("rejects zero or negative amounts before calling the API", async () => {
     const fetchMock = vi.fn();
     const api = buildApi(fetchMock);
@@ -136,5 +129,42 @@ describe("PaymentsApi request shape", () => {
     const api = buildApi(fetchMock);
     const tooBig = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
     await expect(api.deposit(tooBig)).rejects.toThrow(/MAX_SAFE_INTEGER/);
+  });
+
+  it("private-balance runs the challenge/login handshake and attaches Bearer token", async () => {
+    const fetchMock = vi.fn(
+      async (input: string | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/v1/spl/challenge")) {
+          return okResponse({ challenge: "chal-123" });
+        }
+        if (url.includes("/v1/spl/login")) {
+          return okResponse({ token: "jwt-xyz" });
+        }
+        if (url.includes("/v1/spl/private-balance")) {
+          const auth = (init?.headers as Record<string, string>)?.authorization;
+          if (auth !== "Bearer jwt-xyz") return new Response("no auth", { status: 401 });
+          return okResponse({
+            balance: "42000",
+            decimals: 6,
+            address: "addr",
+            mint: MINT,
+            ata: "ata",
+            location: "ephemeral",
+          });
+        }
+        return new Response("unexpected", { status: 404 });
+      },
+    );
+    const api = buildApi(fetchMock);
+    const res = await api.privateBalance();
+    expect(res).toMatchObject({ amount: "42000", decimals: 6 });
+
+    // Second call reuses the cached token (no second challenge request).
+    await api.privateBalance();
+    const challengeCalls = fetchMock.mock.calls.filter((c) =>
+      String(c[0]).includes("/v1/spl/challenge"),
+    );
+    expect(challengeCalls).toHaveLength(1);
   });
 });

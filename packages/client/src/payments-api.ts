@@ -1,5 +1,16 @@
-import { Connection, Keypair, Transaction } from "@solana/web3.js";
-import type { BalanceResponse, BuiltTransactionResponse } from "./types.js";
+import {
+  Connection,
+  Keypair,
+  Transaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
+import nacl from "tweetnacl";
+import type {
+  BalanceLocation,
+  BalanceResponse,
+  BuiltTransactionResponse,
+  TransferVisibility,
+} from "./types.js";
 import { Px402ClientError } from "./types.js";
 
 /**
@@ -10,10 +21,13 @@ import { Px402ClientError } from "./types.js";
  * - Sign with the configured keypair
  * - Submit to the correct RPC based on `sendTo` in the response
  * - Confirm against the returned blockhash + lastValidBlockHeight
+ * - Manage a signed-challenge bearer token for /private-balance
  *
  * No retry logic here. Higher-level wrappers (fetch flow) own retries.
  */
 export class PaymentsApi {
+  private authToken: string | null = null;
+
   constructor(
     private readonly cfg: {
       wallet: Keypair;
@@ -22,7 +36,9 @@ export class PaymentsApi {
       baseRpcUrl: string;
       ephemeralRpcUrl: string;
       cluster: string;
-      privacy: "private" | "public";
+      visibility: TransferVisibility;
+      fromBalance: BalanceLocation;
+      toBalance: BalanceLocation;
       fetch: typeof fetch;
     },
   ) {}
@@ -55,6 +71,12 @@ export class PaymentsApi {
     destination: string;
     amount: bigint;
     memo?: string;
+    /** Override the default fromBalance per-call. */
+    fromBalance?: BalanceLocation;
+    /** Override the default toBalance per-call. */
+    toBalance?: BalanceLocation;
+    /** Override the default visibility per-call. */
+    visibility?: TransferVisibility;
   }): Promise<string> {
     const body = {
       from: this.cfg.wallet.publicKey.toBase58(),
@@ -62,9 +84,18 @@ export class PaymentsApi {
       amount: toSafeInt(opts.amount),
       mint: this.cfg.mint,
       cluster: this.cfg.cluster,
-      visibility: this.cfg.privacy,
-      fromBalance: "ephemeral",
-      toBalance: "ephemeral",
+      visibility: opts.visibility ?? this.cfg.visibility,
+      fromBalance: opts.fromBalance ?? this.cfg.fromBalance,
+      toBalance: opts.toBalance ?? this.cfg.toBalance,
+      // Atomically create and delegate any missing PDAs the tx needs. Without
+      // these the first-ever transfer to a fresh recipient hits
+      // InvalidWritableAccount on an uninitialized ephemeral ATA.
+      initIfMissing: true,
+      initAtasIfMissing: true,
+      initVaultIfMissing: true,
+      // Use v0 + address lookup tables. Init-heavy first-time transfers blow
+      // past the 1232 byte legacy tx limit otherwise.
+      legacy: false,
       ...(opts.memo ? { memo: opts.memo } : {}),
     };
     const built = await this.postBuild("/v1/spl/transfer", body);
@@ -72,11 +103,53 @@ export class PaymentsApi {
   }
 
   async baseBalance(): Promise<BalanceResponse> {
-    return this.getBalance("/v1/spl/balance");
+    return this.getBalance("/v1/spl/balance", false);
   }
 
   async privateBalance(): Promise<BalanceResponse> {
-    return this.getBalance("/v1/spl/private-balance");
+    return this.getBalance("/v1/spl/private-balance", true);
+  }
+
+  /**
+   * Signed-challenge login. Caches the token so private-balance reads reuse
+   * a single auth handshake per client instance.
+   */
+  async authenticate(): Promise<string> {
+    if (this.authToken) return this.authToken;
+
+    const pubkey = this.cfg.wallet.publicKey.toBase58();
+    const challengeUrl = new URL(`${this.cfg.apiUrl}/v1/spl/challenge`);
+    challengeUrl.searchParams.set("pubkey", pubkey);
+    challengeUrl.searchParams.set("cluster", this.cfg.cluster);
+    const challengeRes = await this.cfg.fetch(challengeUrl.toString());
+    if (!challengeRes.ok) {
+      throw new Px402ClientError(
+        `challenge HTTP ${challengeRes.status}: ${await challengeRes.text()}`,
+        "API_ERROR",
+      );
+    }
+    const { challenge } = (await challengeRes.json()) as { challenge: string };
+
+    const signature = signChallenge(challenge, this.cfg.wallet);
+    const loginRes = await this.cfg.fetch(`${this.cfg.apiUrl}/v1/spl/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pubkey,
+        challenge,
+        signature,
+        cluster: this.cfg.cluster,
+      }),
+    });
+    if (!loginRes.ok) {
+      throw new Px402ClientError(
+        `login HTTP ${loginRes.status}: ${await loginRes.text()}`,
+        "API_ERROR",
+      );
+    }
+    const { token } = (await loginRes.json()) as { token: string };
+    this.authToken = token;
+    return token;
   }
 
   private async postBuild(
@@ -98,12 +171,22 @@ export class PaymentsApi {
     return (await res.json()) as BuiltTransactionResponse;
   }
 
-  private async getBalance(path: string): Promise<BalanceResponse> {
+  private async getBalance(
+    path: string,
+    requiresAuth: boolean,
+  ): Promise<BalanceResponse> {
     const url = new URL(`${this.cfg.apiUrl}${path}`);
     url.searchParams.set("address", this.cfg.wallet.publicKey.toBase58());
     url.searchParams.set("mint", this.cfg.mint);
     url.searchParams.set("cluster", this.cfg.cluster);
-    const res = await this.cfg.fetch(url.toString());
+
+    const headers: Record<string, string> = {};
+    if (requiresAuth) {
+      const token = await this.authenticate();
+      headers.authorization = `Bearer ${token}`;
+    }
+
+    const res = await this.cfg.fetch(url.toString(), { headers });
     if (!res.ok) {
       const text = await res.text();
       throw new Px402ClientError(
@@ -111,7 +194,12 @@ export class PaymentsApi {
         "API_ERROR",
       );
     }
-    const json = (await res.json()) as { balance: string; decimals?: number };
+    const json = (await res.json()) as {
+      balance: string;
+      decimals?: number;
+      ata?: string;
+      location?: BalanceLocation;
+    };
     return {
       amount: json.balance,
       ...(json.decimals !== undefined ? { decimals: json.decimals } : {}),
@@ -120,17 +208,15 @@ export class PaymentsApi {
 
   private async signAndSubmit(built: BuiltTransactionResponse): Promise<string> {
     const raw = Buffer.from(built.transactionBase64, "base64");
-    const tx = Transaction.from(raw);
-    tx.sign(this.cfg.wallet);
-
     const rpcUrl =
       built.sendTo === "ephemeral" ? this.cfg.ephemeralRpcUrl : this.cfg.baseRpcUrl;
     const connection = new Connection(rpcUrl, "confirmed");
 
-    const signature = await connection.sendRawTransaction(tx.serialize(), {
-      // Preflight fails on ER for private transfers due to account-delegation
-      // semantics the simulator doesn't model; the real ER runtime checks
-      // delegation post-submit. Surface errors via getTransaction instead.
+    const serialized = built.version === "v0" ? signV0(raw, this.cfg.wallet) : signLegacy(raw, this.cfg.wallet);
+
+    const signature = await connection.sendRawTransaction(serialized, {
+      // ER enforces delegation after submit in ways the simulator does not
+      // model. Preflight false-positives on valid private transfers, so skip.
       skipPreflight: true,
       maxRetries: 3,
     });
@@ -146,6 +232,24 @@ export class PaymentsApi {
 
     return signature;
   }
+}
+
+function signLegacy(raw: Buffer, wallet: Keypair): Buffer {
+  const tx = Transaction.from(raw);
+  tx.sign(wallet);
+  return Buffer.from(tx.serialize());
+}
+
+function signV0(raw: Buffer, wallet: Keypair): Buffer {
+  const tx = VersionedTransaction.deserialize(raw);
+  tx.sign([wallet]);
+  return Buffer.from(tx.serialize());
+}
+
+function signChallenge(challenge: string, wallet: Keypair): string {
+  const message = Buffer.from(challenge, "utf8");
+  const signature = nacl.sign.detached(message, wallet.secretKey);
+  return Buffer.from(signature).toString("base64");
 }
 
 function toSafeInt(amount: bigint): number {

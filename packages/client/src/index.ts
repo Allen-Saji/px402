@@ -1,8 +1,10 @@
 export { Px402Client } from "./client.js";
 export type {
+  BalanceLocation,
   BalanceResponse,
   BuiltTransactionResponse,
   Px402ClientConfig,
+  TransferVisibility,
 } from "./types.js";
 export {
   InsufficientBalanceError,

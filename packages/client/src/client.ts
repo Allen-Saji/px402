@@ -4,14 +4,21 @@ import {
   fetchWithPayment,
   type FetchDeps,
 } from "./fetch.js";
-import type { BalanceResponse, Px402ClientConfig } from "./types.js";
+import type {
+  BalanceLocation,
+  BalanceResponse,
+  Px402ClientConfig,
+  TransferVisibility,
+} from "./types.js";
 
 const DEFAULTS = {
   apiUrl: "https://payments.magicblock.app",
   baseRpcUrl: "https://rpc.magicblock.app/devnet",
   ephemeralRpcUrl: "https://devnet.magicblock.app",
   cluster: "devnet" as const,
-  privacy: "private" as const,
+  visibility: "private" as const,
+  fromBalance: "ephemeral" as const,
+  toBalance: "ephemeral" as const,
 };
 
 export class Px402Client {
@@ -29,7 +36,9 @@ export class Px402Client {
       baseRpcUrl: cfg.baseRpcUrl ?? DEFAULTS.baseRpcUrl,
       ephemeralRpcUrl: cfg.ephemeralRpcUrl ?? DEFAULTS.ephemeralRpcUrl,
       cluster: cfg.cluster ?? DEFAULTS.cluster,
-      privacy: cfg.privacy ?? DEFAULTS.privacy,
+      visibility: cfg.visibility ?? DEFAULTS.visibility,
+      fromBalance: cfg.fromBalance ?? DEFAULTS.fromBalance,
+      toBalance: cfg.toBalance ?? DEFAULTS.toBalance,
       fetch: this.fetchImpl,
     });
   }
@@ -51,24 +60,25 @@ export class Px402Client {
 
   /**
    * Ephemeral rollup (PER) SPL balance. This is what gets spent on 402 calls.
-   *
-   * NOTE: As of 2026-04-21 the live devnet endpoint returns 422 with
-   * `authorization is required`. The MagicBlock SDK obtains a signed-challenge
-   * token via `getAuthToken`. Integrating that flow here is tracked as a
-   * follow-up and blocks full PER balance reads until resolved.
+   * Uses a signed-challenge bearer token obtained transparently via
+   * /v1/spl/challenge + /v1/spl/login. The token is cached on the client
+   * instance after the first call.
    */
   privateBalance(): Promise<BalanceResponse> {
     return this.api.privateBalance();
   }
 
   /**
-   * Issue a private PER transfer directly. Useful for non-HTTP flows or agent
-   * tooling that wants to prepay and hand off the payment id/token.
+   * Issue a transfer directly. Useful for non-HTTP flows or agent tooling
+   * that wants to prepay and hand off the payment id/token.
    */
   transfer(opts: {
     destination: string;
     amount: bigint;
     memo?: string;
+    fromBalance?: BalanceLocation;
+    toBalance?: BalanceLocation;
+    visibility?: TransferVisibility;
   }): Promise<string> {
     return this.api.transfer(opts);
   }

@@ -1,5 +1,8 @@
 import type { Keypair } from "@solana/web3.js";
 
+export type BalanceLocation = "base" | "ephemeral";
+export type TransferVisibility = "public" | "private";
+
 export interface Px402ClientConfig {
   /** Payer keypair. Signs deposits, withdraws, and payment transfers. */
   wallet: Keypair;
@@ -11,10 +14,17 @@ export interface Px402ClientConfig {
   baseRpcUrl?: string;
   /** Ephemeral rollup RPC for PER tx submission. Default: https://devnet.magicblock.app */
   ephemeralRpcUrl?: string;
-  /** Solana cluster the API targets. Default: "devnet" */
-  cluster?: "devnet" | "mainnet-beta";
-  /** Default privacy mode for outgoing transfers. Default: "private" */
-  privacy?: "private" | "public";
+  /**
+   * Cluster identifier forwarded to every REST call. Use "devnet" or "mainnet".
+   * The API maps these to its own RPC env vars. Default: "devnet".
+   */
+  cluster?: "devnet" | "mainnet" | (string & {});
+  /** Default visibility for outgoing transfers. Default: "private" */
+  visibility?: TransferVisibility;
+  /** Default source location for outgoing transfers. Default: "ephemeral" */
+  fromBalance?: BalanceLocation;
+  /** Default destination location for outgoing transfers. Default: "ephemeral" */
+  toBalance?: BalanceLocation;
   /** Retry schedule in ms for the 402 -> pay -> retry flow. Matches locked design. */
   retryDelaysMs?: number[];
   /** Optional custom fetch, for tests. */
@@ -22,13 +32,15 @@ export interface Px402ClientConfig {
 }
 
 export interface BuiltTransactionResponse {
-  kind?: string;
+  kind: "deposit" | "withdraw" | "transfer";
+  version: "legacy" | "v0";
   transactionBase64: string;
-  sendTo: "base" | "ephemeral" | string;
+  sendTo: BalanceLocation;
   recentBlockhash: string;
   lastValidBlockHeight: number;
-  instructionCount?: number;
-  requiredSigners?: string[];
+  instructionCount: number;
+  requiredSigners: string[];
+  validator?: string;
 }
 
 export interface BalanceResponse {
