@@ -1,0 +1,44 @@
+{
+  "name": "@px402/core",
+  "version": "0.0.1",
+  "description": "px402 core: HMAC payment tokens, memo verification, rate limiting, PER logsSubscribe",
+  "license": "MIT",
+  "author": "Allen Saji <allensaji04@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Allen-Saji/px402.git",
+    "directory": "packages/core"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ulidx": "^2.4.1",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13"
+  }
+}
