@@ -77,7 +77,7 @@ describe("fetchWithPayment", () => {
     expect(api.transfer).toHaveBeenCalledWith({
       destination: DEST,
       amount: BigInt(PRICE),
-      memo: "01MEMOXXXXXXXXXXXXXXXXXXXX",
+      clientRefId: "01MEMOXXXXXXXXXXXXXXXXXXXX",
     });
 
     // Second call carried the headers.
@@ -122,7 +122,7 @@ describe("fetchWithPayment", () => {
     expect(api.transfer).toHaveBeenCalledTimes(2);
     // Second transfer uses the fresh memo.
     const secondCall = (api.transfer as ReturnType<typeof vi.fn>).mock.calls[1]![0];
-    expect(secondCall.memo).toBe("01FRESHXXXXXXXXXXXXXXXXXXX");
+    expect(secondCall.clientRefId).toBe("01FRESHXXXXXXXXXXXXXXXXXXX");
   });
 
   it("throws MaxRetriesExceededError when all attempts stay pending", async () => {

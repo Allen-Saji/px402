@@ -17,8 +17,11 @@ const DEFAULTS = {
   ephemeralRpcUrl: "https://devnet.magicblock.app",
   cluster: "devnet" as const,
   visibility: "private" as const,
-  fromBalance: "ephemeral" as const,
-  toBalance: "ephemeral" as const,
+  // MagicBlock's only fully-working route for private transfers: payments
+  // originate on base chain, TEE decrypts + settles back to the recipient's
+  // base-chain ATA via the crank. ephemeral->ephemeral is an SDK stub.
+  fromBalance: "base" as const,
+  toBalance: "base" as const,
 };
 
 export class Px402Client {
@@ -75,7 +78,7 @@ export class Px402Client {
   transfer(opts: {
     destination: string;
     amount: bigint;
-    memo?: string;
+    clientRefId?: string;
     fromBalance?: BalanceLocation;
     toBalance?: BalanceLocation;
     visibility?: TransferVisibility;

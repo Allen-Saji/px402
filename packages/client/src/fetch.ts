@@ -6,7 +6,15 @@ import {
 } from "./types.js";
 import type { PaymentsApi } from "./payments-api.js";
 
-const DEFAULT_RETRY_DELAYS_MS = [500, 1000, 2000] as const;
+/**
+ * Retry schedule for the 402 -> pay -> retry flow.
+ *
+ * Private base->base path has three latency legs: base confirm (~1.5s),
+ * TEE decrypt + queue (~sub-second), crank tick (~500ms after cranker is
+ * registered). We give the crank a couple of cycles to land before backing
+ * off aggressively.
+ */
+const DEFAULT_RETRY_DELAYS_MS = [2000, 4000, 8000, 15000] as const;
 
 interface Headers402 {
   amount: string;
@@ -62,7 +70,7 @@ async function payAndRetry(
     signature = await deps.api.transfer({
       destination: headers.destination,
       amount: BigInt(headers.amount),
-      memo: headers.paymentId,
+      clientRefId: headers.paymentId,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message.toLowerCase() : "";

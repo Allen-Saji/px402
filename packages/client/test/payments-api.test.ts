@@ -14,8 +14,8 @@ function buildApi(fetchMock: ReturnType<typeof vi.fn>) {
     ephemeralRpcUrl: "https://er.test",
     cluster: "devnet",
     visibility: "private",
-    fromBalance: "ephemeral",
-    toBalance: "ephemeral",
+    fromBalance: "base",
+    toBalance: "base",
     fetch: fetchMock as unknown as typeof fetch,
   });
 }
@@ -28,14 +28,14 @@ function okResponse(body: unknown): Response {
 }
 
 describe("PaymentsApi request shape", () => {
-  it("transfer POSTs to /v1/spl/transfer with owner/destination/amount/mint/cluster/privacy/memo", async () => {
+  it("transfer POSTs to /v1/spl/transfer with the full documented body", async () => {
     const fetchMock = vi.fn(
       async (_input: string | URL, _init?: RequestInit) =>
         new Response("boom", { status: 500 }),
     );
     const api = buildApi(fetchMock);
     await expect(
-      api.transfer({ destination: "DEST", amount: 50n, memo: "01MEMO" }),
+      api.transfer({ destination: "DEST", amount: 50n, clientRefId: "12345" }),
     ).rejects.toBeInstanceOf(Px402ClientError);
 
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -48,17 +48,15 @@ describe("PaymentsApi request shape", () => {
       mint: MINT,
       cluster: "devnet",
       visibility: "private",
-      fromBalance: "ephemeral",
-      toBalance: "ephemeral",
-      memo: "01MEMO",
-      initIfMissing: true,
-      initAtasIfMissing: true,
-      initVaultIfMissing: true,
+      fromBalance: "base",
+      toBalance: "base",
+      clientRefId: "12345",
     });
+    expect("initIfMissing" in body).toBe(false);
     expect(typeof body.from).toBe("string");
   });
 
-  it("transfer omits memo when not provided", async () => {
+  it("transfer omits clientRefId when not provided", async () => {
     const fetchMock = vi.fn(
       async (_input: string | URL, _init?: RequestInit) =>
         new Response("boom", { status: 500 }),
@@ -67,7 +65,7 @@ describe("PaymentsApi request shape", () => {
     await api.transfer({ destination: "DEST", amount: 10n }).catch(() => null);
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse((init as RequestInit).body as string);
-    expect("memo" in body).toBe(false);
+    expect("clientRefId" in body).toBe(false);
   });
 
   it("deposit POSTs to /v1/spl/deposit with initIfMissing flags", async () => {

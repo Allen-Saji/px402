@@ -68,16 +68,30 @@ export class PaymentsApi {
   }
 
   async transfer(opts: {
+    /** Recipient wallet pubkey (not ATA). The API derives the correct target account. */
     destination: string;
     amount: bigint;
-    memo?: string;
+    /**
+     * Decimal-string u64 identifier. Encrypted into the private transfer
+     * payload and echoed verbatim in the crank's tick log (`client_ref_id`).
+     * The server looks this up to confirm the payment.
+     */
+    clientRefId?: string;
     /** Override the default fromBalance per-call. */
     fromBalance?: BalanceLocation;
     /** Override the default toBalance per-call. */
     toBalance?: BalanceLocation;
     /** Override the default visibility per-call. */
     visibility?: TransferVisibility;
+    /**
+     * Include PDA initialization instructions atomically. Needed on the very
+     * first transfer for a new sender+validator+mint triple. Default false
+     * because MagicBlock's API currently only returns legacy transactions and
+     * the init-heavy form exceeds the 1232-byte cap.
+     */
+    init?: boolean;
   }): Promise<string> {
+    const withInit = opts.init ?? false;
     const body = {
       from: this.cfg.wallet.publicKey.toBase58(),
       to: opts.destination,
@@ -87,16 +101,10 @@ export class PaymentsApi {
       visibility: opts.visibility ?? this.cfg.visibility,
       fromBalance: opts.fromBalance ?? this.cfg.fromBalance,
       toBalance: opts.toBalance ?? this.cfg.toBalance,
-      // Atomically create and delegate any missing PDAs the tx needs. Without
-      // these the first-ever transfer to a fresh recipient hits
-      // InvalidWritableAccount on an uninitialized ephemeral ATA.
-      initIfMissing: true,
-      initAtasIfMissing: true,
-      initVaultIfMissing: true,
-      // Use v0 + address lookup tables. Init-heavy first-time transfers blow
-      // past the 1232 byte legacy tx limit otherwise.
-      legacy: false,
-      ...(opts.memo ? { memo: opts.memo } : {}),
+      ...(withInit
+        ? { initIfMissing: true, initAtasIfMissing: true, initVaultIfMissing: true }
+        : {}),
+      ...(opts.clientRefId ? { clientRefId: opts.clientRefId } : {}),
     };
     const built = await this.postBuild("/v1/spl/transfer", body);
     return this.signAndSubmit(built);
