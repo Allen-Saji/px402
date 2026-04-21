@@ -3,12 +3,15 @@ import { randomBytes } from "node:crypto";
 export interface DemoConfig {
   port: number;
   serverSecret: string;
-  destinationWallet: string;
-  destinationAta: string;
+  /** Server's wallet pubkey. Used as X-Payment-Address and as the receiver filter. */
+  paymentAddress: string;
   mint: string;
+  cluster: string;
+  apiUrl: string;
   baseRpcUrl: string;
   ephemeralRpcUrl: string;
   ephemeralWsUrl: string;
+  validator: string;
   pricing: Record<string, string>;
 }
 
@@ -40,12 +43,14 @@ export function loadConfig(): DemoConfig {
   return {
     port: Number(process.env.PORT ?? 8787),
     serverSecret: serverSecret ?? randomBytes(32).toString("hex"),
-    destinationWallet: required("PX402_DESTINATION_WALLET"),
-    destinationAta: required("PX402_DESTINATION_ATA"),
+    paymentAddress: required("PX402_PAYMENT_ADDRESS"),
     mint: required("PX402_MINT"),
+    cluster: process.env.PX402_CLUSTER ?? "devnet",
+    apiUrl: process.env.PX402_API_URL ?? "https://payments.magicblock.app",
     baseRpcUrl: process.env.PX402_BASE_RPC_URL ?? "https://rpc.magicblock.app/devnet",
     ephemeralRpcUrl,
     ephemeralWsUrl,
+    validator: process.env.PX402_VALIDATOR ?? "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57",
     pricing: {
       "/api/sentiment": process.env.PX402_PRICE_SENTIMENT ?? "10000",
     },
