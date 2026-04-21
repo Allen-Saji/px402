@@ -1,0 +1,44 @@
+{
+  "name": "@px402/hono",
+  "version": "0.0.1",
+  "description": "Hono middleware for px402 private agent payments",
+  "license": "MIT",
+  "author": "Allen Saji <allensaji04@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Allen-Saji/px402.git",
+    "directory": "packages/hono"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@px402/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "hono": ">=4.0.0"
+  },
+  "devDependencies": {
+    "hono": "^4.6.14"
+  }
+}
