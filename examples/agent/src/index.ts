@@ -43,11 +43,15 @@ async function main() {
   console.log(`[agent] mint=${mint}`);
   console.log(`[agent] server=${serverUrl}`);
 
-  const privacy = (process.env.PX402_PRIVACY as "private" | "public" | undefined) ?? "private";
+  const visibility = (process.env.PX402_VISIBILITY as "private" | "public" | undefined) ?? "private";
+  const fromBalance = (process.env.PX402_FROM_BALANCE as "base" | "ephemeral" | undefined) ?? "ephemeral";
+  const toBalance = (process.env.PX402_TO_BALANCE as "base" | "ephemeral" | undefined) ?? "ephemeral";
   const client = new Px402Client({
     wallet,
     mint,
-    privacy,
+    visibility,
+    fromBalance,
+    toBalance,
     ...(process.env.PX402_API_URL ? { apiUrl: process.env.PX402_API_URL } : {}),
     ...(process.env.PX402_BASE_RPC_URL
       ? { baseRpcUrl: process.env.PX402_BASE_RPC_URL }
@@ -56,7 +60,7 @@ async function main() {
       ? { ephemeralRpcUrl: process.env.PX402_EPHEMERAL_RPC_URL }
       : {}),
   });
-  console.log(`[agent] privacy=${privacy}`);
+  console.log(`[agent] visibility=${visibility} fromBalance=${fromBalance} toBalance=${toBalance}`);
 
   const [base, priv] = await Promise.all([
     client.balance().catch((e) => ({ error: e.message })),
