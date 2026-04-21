@@ -1,0 +1,21 @@
+{
+  "name": "px402-example-agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Devnet agent that pays for APIs via @px402/client against a live demo-apis server",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@px402/client": "workspace:*",
+    "@solana/web3.js": "^1.95.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
