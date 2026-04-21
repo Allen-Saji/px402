@@ -1,0 +1,41 @@
+{
+  "name": "@px402/client",
+  "version": "0.0.1",
+  "description": "px402 client SDK: fetch wrapper, PER deposit/balance/withdraw for agent APIs",
+  "license": "MIT",
+  "author": "Allen Saji <allensaji04@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Allen-Saji/px402.git",
+    "directory": "packages/client"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.95.8"
+  },
+  "peerDependencies": {
+    "@px402/core": "workspace:*"
+  }
+}

@@ -22,7 +22,8 @@
     "paths": {
       "@px402/core": ["packages/core/src/index.ts"],
       "@px402/core/*": ["packages/core/src/*"],
-      "@px402/hono": ["packages/hono/src/index.ts"]
+      "@px402/hono": ["packages/hono/src/index.ts"],
+      "@px402/client": ["packages/client/src/index.ts"]
     }
   }
 }
