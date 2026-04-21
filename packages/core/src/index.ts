@@ -38,3 +38,13 @@ export {
 export { createFetchAmount, type FetchAmountConfig } from "./fetch-amount.js";
 
 export { deriveQueuePda, deriveEphemeralAta, SPL_PP_PROGRAM_ID } from "./pda.js";
+
+export {
+  createHandler,
+  normalizePath,
+  type Decision,
+  type HandlerConfig,
+  type Px402Handler,
+  type RequestContext,
+  type VerifiedEvent,
+} from "./middleware.js";
