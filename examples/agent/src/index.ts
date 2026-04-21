@@ -43,9 +43,11 @@ async function main() {
   console.log(`[agent] mint=${mint}`);
   console.log(`[agent] server=${serverUrl}`);
 
+  const privacy = (process.env.PX402_PRIVACY as "private" | "public" | undefined) ?? "private";
   const client = new Px402Client({
     wallet,
     mint,
+    privacy,
     ...(process.env.PX402_API_URL ? { apiUrl: process.env.PX402_API_URL } : {}),
     ...(process.env.PX402_BASE_RPC_URL
       ? { baseRpcUrl: process.env.PX402_BASE_RPC_URL }
@@ -54,6 +56,7 @@ async function main() {
       ? { ephemeralRpcUrl: process.env.PX402_EPHEMERAL_RPC_URL }
       : {}),
   });
+  console.log(`[agent] privacy=${privacy}`);
 
   const [base, priv] = await Promise.all([
     client.balance().catch((e) => ({ error: e.message })),
@@ -71,8 +74,8 @@ async function main() {
     );
     const sig = await client.deposit(depositAmount);
     console.log(`[agent] deposit sig=${sig}`);
-    const refreshed = await client.privateBalance();
-    console.log(`[agent] PER balance    :`, refreshed);
+    // NOTE: post-deposit balance read is gated by the auth challenge on
+    // /v1/spl/private-balance. Skip until that flow is integrated.
   }
 
   console.log("[agent] calling /api/sentiment via px402 client");
