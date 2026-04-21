@@ -103,6 +103,42 @@ async function main() {
     });
   });
 
+  app.get("/api/whales", (c) => {
+    const min = Number(c.req.query("min") ?? 100_000);
+    const seed = hashToUnit(`whales:${min}`);
+    const count = 2 + Math.floor(seed * 4);
+    const transfers = Array.from({ length: count }, (_, i) => ({
+      from: syntheticAddress(`w-from-${min}-${i}`),
+      to: syntheticAddress(`w-to-${min}-${i}`),
+      token: pickToken(seed + i * 0.1),
+      amount: Math.floor(min * (1.0 + hashToUnit(`amt-${min}-${i}`) * 9)),
+      slot: 337_000_000 + Math.floor(hashToUnit(`slot-${min}-${i}`) * 500_000),
+    }));
+    return c.json({
+      minAmount: min,
+      window: "24h",
+      transfers,
+      lastUpdated: new Date().toISOString(),
+    });
+  });
+
+  app.get("/api/risk", (c) => {
+    const address = c.req.query("address");
+    if (!address) return c.json({ error: "address query param required" }, 400);
+    const risk = hashToUnit(`risk:${address}`);
+    const signals: string[] = [];
+    if (hashToUnit(`mev:${address}`) > 0.8) signals.push("frequent-mev-sandwich-target");
+    if (hashToUnit(`sanct:${address}`) > 0.92) signals.push("sanctioned-cex-proximity");
+    if (hashToUnit(`rug:${address}`) > 0.87) signals.push("interacted-with-known-rug");
+    return c.json({
+      address,
+      risk: Number(risk.toFixed(3)),
+      band: riskBand(risk),
+      signals,
+      lastUpdated: new Date().toISOString(),
+    });
+  });
+
   const server = serve({ fetch: app.fetch, port: cfg.port }, (info) => {
     console.log(`[px402 demo-apis] listening on http://localhost:${info.port}`);
   });
@@ -129,6 +165,31 @@ function deterministicSentiment(token: string): "bullish" | "bearish" | "neutral
   if (u < 0.45) return "bullish";
   if (u < 0.75) return "bearish";
   return "neutral";
+}
+
+const WHALE_TOKEN_MIX = ["SOL", "USDC", "JUP", "BONK", "JTO", "PYTH"] as const;
+
+function pickToken(u: number): string {
+  const idx = Math.floor(((u % 1) + 1) % 1 * WHALE_TOKEN_MIX.length);
+  return WHALE_TOKEN_MIX[idx] ?? "SOL";
+}
+
+function riskBand(u: number): "low" | "medium" | "high" {
+  if (u < 0.33) return "low";
+  if (u < 0.75) return "medium";
+  return "high";
+}
+
+const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function syntheticAddress(seed: string): string {
+  let u = hashToUnit(seed);
+  let out = "";
+  for (let i = 0; i < 44; i++) {
+    u = (u * 9301 + 49297) % 233280;
+    out += BASE58[Math.floor((u / 233280) * BASE58.length)];
+  }
+  return out;
 }
 
 main().catch((err) => {

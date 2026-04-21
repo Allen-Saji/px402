@@ -53,6 +53,8 @@ export function loadConfig(): DemoConfig {
     validator: process.env.PX402_VALIDATOR ?? "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57",
     pricing: {
       "/api/sentiment": process.env.PX402_PRICE_SENTIMENT ?? "10000",
+      "/api/whales": process.env.PX402_PRICE_WHALES ?? "20000",
+      "/api/risk": process.env.PX402_PRICE_RISK ?? "30000",
     },
   };
 }
