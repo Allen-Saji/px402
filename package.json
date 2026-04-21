@@ -1,0 +1,26 @@
+{
+  "name": "px402",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Private x402 payments for agent APIs on Solana via MagicBlock PER",
+  "repository": "github:Allen-Saji/px402",
+  "author": "Allen Saji <allensaji04@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "clean": "pnpm -r exec rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
