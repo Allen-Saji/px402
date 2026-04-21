@@ -32,3 +32,5 @@ export {
   type SubscriberConfig,
   type SubscriberEvents,
 } from "./subscribe.js";
+
+export { createFetchAmount, type FetchAmountConfig } from "./fetch-amount.js";
