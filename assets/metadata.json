@@ -1,0 +1,17 @@
+{
+  "name": "USD Coin",
+  "symbol": "USDC",
+  "description": "USD Coin (USDC) is a fully-reserved stablecoin. This is a devnet test mint used by the px402 protocol for private x402 payment testing.",
+  "image": "https://raw.githubusercontent.com/Allen-Saji/px402/main/assets/usdc.png",
+  "external_url": "https://github.com/Allen-Saji/px402",
+  "attributes": [
+    {
+      "trait_type": "Network",
+      "value": "Solana Devnet"
+    },
+    {
+      "trait_type": "Purpose",
+      "value": "Test USDC for px402 protocol"
+    }
+  ]
+}
