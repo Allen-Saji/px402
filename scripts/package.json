@@ -1,0 +1,23 @@
+{
+  "name": "px402-scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "stress:burst": "tsx stress-burst.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@px402/client": "workspace:*",
+    "@solana/web3.js": "^1.95.8",
+    "px402-integration-tests": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
