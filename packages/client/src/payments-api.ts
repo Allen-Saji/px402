@@ -106,8 +106,29 @@ export class PaymentsApi {
         : {}),
       ...(opts.clientRefId ? { clientRefId: opts.clientRefId } : {}),
     };
-    const built = await this.postBuild("/v1/spl/transfer", body);
-    return this.signAndSubmit(built);
+
+    // Devnet RPC sometimes returns stale blockhashes. If sign+submit fails
+    // because lastValidBlockHeight has passed, rebuild and retry up to 2 times.
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const built = await this.postBuild("/v1/spl/transfer", body);
+        return await this.signAndSubmit(built);
+      } catch (err) {
+        lastErr = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        const transient =
+          msg.includes("block height exceeded") ||
+          msg.includes("blockhash") ||
+          msg.includes("Connect Timeout") ||
+          msg.includes("ETIMEDOUT") ||
+          msg.includes("ECONNRESET") ||
+          msg.includes("fetch failed");
+        if (!transient || attempt === 2) throw err;
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+      }
+    }
+    throw lastErr;
   }
 
   async baseBalance(): Promise<BalanceResponse> {
