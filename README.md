@@ -115,6 +115,14 @@ These are implementation-reality findings the original design doc does not cover
 
 7. **ER commitment ordering is inverted.** `processed ≤ confirmed ≤ finalized` in slot number. Always read with `finalized`; `processed` is an older view.
 
+8. **Insert and pop logs land in separate transactions on the queue PDA.** A naive `Promise.all` over a chunk of fetched signatures races: pop's `queuedAmounts.get` can resolve before insert's `queuedAmounts.set` completes, even though insert is chronologically older. The subscriber works in three deterministic phases per chunk: parallel fetch (network IO concurrent), local parse (no state mutation), then **sequential sorted apply** keyed on `(slot ASC, txOrder ASC, kind: insert before pop)`. Insert always lands in the index before the matching pop reads it.
+
+9. **Pops without a matching insert get buffered, not dropped.** When the subscriber starts mid-flight, an insert may have happened before the watermark seed. The subscriber buffers such orphaned pops in an in-memory map (capped at 1000 entries, 10-min TTL) and resolves them when the matching insert arrives in a later poll. If the insert never appears forward, a directed **backwards `getSignaturesForAddress({ before })`** scan walks 50 sigs back, then 200, looking for the missing insert. Backwards-scans are rate-limited to 5/minute to bound RPC load.
+
+10. **Watermark only advances after the chunk's apply phase succeeds.** Earlier code advanced the watermark immediately after the RPC call, which meant any failure during processing silently lost the affected sigs. The subscriber now keeps the watermark put on chunk failure; the next poll re-fetches, and the per-sig `processedSigs` set (populated only after a definitive `getTransaction` result) prevents double-processing of the ones that did succeed.
+
+11. **Stale blockhashes show up under load.** MagicBlock's REST API returns an unsigned transaction with a recent blockhash. Under devnet congestion the blockhash can expire before the client signs and submits. `Px402Client.transfer` retries up to 3× with fresh `postBuild` calls on `block height exceeded` / `Connect Timeout` / `fetch failed` / similar transient errors before surfacing them.
+
 ## Demo
 
 The `apps/demo-apis` server exposes three priced routes backed by deterministic mock data:
@@ -141,9 +149,22 @@ The agent script loads a Solana keypair from `~/.config/solana/id.json` by defau
 
 ```bash
 pnpm install
-pnpm test        # 73 vitest cases across all packages
+pnpm build        # compile dist/ for each package (required before running integration tests)
+pnpm test         # 73 vitest cases across all packages (no devnet, ~1s)
 pnpm typecheck
+
+# Real-devnet integration suite (10 scenarios, requires funded keypair at ~/.config/solana/id.json)
+pnpm fund -- --count 30          # one-time wallet pool provisioning
+pnpm test:devnet                 # full suite (~12 min total when run sequentially)
+
+# Stress harness — configurable burst load
+pnpm stress -- --agents 30 --rate 6 --duration 5
 ```
+
+Empirical numbers from a clean devnet run:
+- Single payment end-to-end: **~4 seconds** (no retries)
+- 30-payment burst over 5 seconds, distinct wallets: **96.7% success, p50 8.3s, p90 15.9s, avg 1.34 retries**
+- Subscriber-lag scenario (insert older than watermark): orphan pop is buffered, backwards-scanned, and resolved within ~5 seconds
 
 ## License
 
