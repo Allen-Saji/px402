@@ -54,6 +54,7 @@ async function main() {
     queuePda: queuePda.toBase58(),
     receiverWallet: cfg.paymentAddress,
     commitment: "finalized",
+    ...(cfg.pollIntervalMs !== undefined ? { pollIntervalMs: cfg.pollIntervalMs } : {}),
     logger: {
       info: (m) => console.log(m),
       warn: (m) => console.warn(m),
@@ -86,6 +87,7 @@ async function main() {
       paymentAddress: cfg.paymentAddress,
       pricing: cfg.pricing,
       subscriber,
+      ...(cfg.tokenTtlMs !== undefined ? { tokenTtlMs: cfg.tokenTtlMs } : {}),
       onVerified: (e) =>
         console.log(
           `[px402] verified path=${e.path} sig=${e.signature} amount=${e.amount} ip=${e.ip}`,

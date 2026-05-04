@@ -13,6 +13,10 @@ export interface DemoConfig {
   ephemeralWsUrl: string;
   validator: string;
   pricing: Record<string, string>;
+  /** Token TTL override in ms. Default 5 min from @px402/core. Useful for shorter expiries in tests. */
+  tokenTtlMs?: number;
+  /** Subscriber poll interval override. */
+  pollIntervalMs?: number;
 }
 
 function required(name: string): string {
@@ -56,5 +60,9 @@ export function loadConfig(): DemoConfig {
       "/api/whales": process.env.PX402_PRICE_WHALES ?? "20000",
       "/api/risk": process.env.PX402_PRICE_RISK ?? "30000",
     },
+    ...(process.env.PX402_TOKEN_TTL_MS ? { tokenTtlMs: Number(process.env.PX402_TOKEN_TTL_MS) } : {}),
+    ...(process.env.PX402_POLL_INTERVAL_MS
+      ? { pollIntervalMs: Number(process.env.PX402_POLL_INTERVAL_MS) }
+      : {}),
   };
 }
