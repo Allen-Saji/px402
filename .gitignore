@@ -10,3 +10,12 @@ coverage/
 .turbo/
 .vercel/
 .next/
+# Compiled artifacts that may leak into source dirs
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+# Integration test scratch
+tests/integration/.tmp/
+# Stress harness output
+stress-*.csv

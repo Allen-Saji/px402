@@ -13,7 +13,10 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "build": "pnpm -r run build",
-    "test": "pnpm -r run test",
+    "test": "pnpm --filter \"./packages/*\" run test",
+    "test:devnet": "pnpm --filter px402-integration-tests test:devnet",
+    "stress": "pnpm --filter px402-scripts stress:burst",
+    "fund": "pnpm --filter px402-integration-tests fund",
     "typecheck": "pnpm -r run typecheck",
     "clean": "pnpm -r exec rm -rf dist"
   },
