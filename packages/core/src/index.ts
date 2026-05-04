@@ -29,8 +29,10 @@ export { RateLimiter, type LimitDecision } from "./rate-limit.js";
 
 export {
   PrivateTransferSubscriber,
+  type StalledEvent,
   type SubscriberConfig,
   type SubscriberEvents,
+  type SubscriberStatus,
   type TickEvent,
   type VerifiedTick,
 } from "./subscribe.js";
