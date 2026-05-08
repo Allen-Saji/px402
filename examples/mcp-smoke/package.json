@@ -1,0 +1,24 @@
+{
+  "name": "px402-example-mcp-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Smoke harness for @px402/mcp: spawn the bin via stdio, call px402_balance + px402_fetch tools against a live demo-apis target",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "smoke": "tsx src/smoke.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@px402/mcp": "workspace:*",
+    "@solana/web3.js": "^1.95.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

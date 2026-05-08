@@ -1,0 +1,32 @@
+{
+  "name": "px402-example-server-next",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Smoke harness for @px402/next: Next.js App Router route gated by px402, plus a client driver that pays via @px402/client",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev -p ${PORT:-8903} -H 127.0.0.1",
+    "start": "next dev -p ${PORT:-8903} -H 127.0.0.1",
+    "smoke": "tsx src/smoke.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@px402/client": "workspace:*",
+    "@px402/core": "workspace:*",
+    "@px402/next": "workspace:*",
+    "@solana/web3.js": "^1.95.8",
+    "next": "^16.2.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
