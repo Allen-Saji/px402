@@ -6,35 +6,7 @@ Private-payment extension of the [x402](https://github.com/coinbase/x402) protoc
 
 ## How it works
 
-```
-   Agent                     API server                    MagicBlock
-   (Px402Client)             (Px402* adapter)              (SPLxh1LV...)
-      |                            |                             |
- 1.   |---- GET /api/foo --------->|                             |
-      |                            |                             |
- 2.   |<---- 402 + X-Payment-*-----|                             |
-      |       id / token           |                             |
-      |                            |                             |
- 3.   |---- POST /v1/spl/transfer ---------- base chain -------->|
-      |         visibility: private                              |
-      |         fromBalance: base                                |
-      |         toBalance:   base                                |
-      |         clientRefId: <u63>                               |
-      |         (destination encrypted into NaCl box for TEE)    |
-      |                            |                             |
- 4.   |                            |   <--- TEE decrypts,        |
-      |                            |        queues, crank ticks, |
-      |                            |        logs:                |
-      |                            |        ProcessTransferQueue-|
-      |                            |        Tick ... clientRefId:|
-      |                            |        <u63> receiver: <srv>|
-      |                            |                             |
- 5.   |---- GET /api/foo --------->|<--- server polls queue PDA -|
-      |     + X-Payment-Id         |     matches clientRefId +   |
-      |     + X-Payment-Token      |     receiver                |
-      |                            |                             |
- 6.   |<---- 200 + data -----------|                             |
-```
+![px402 architecture](./assets/architecture.png)
 
 **What's public on Solana:** the sender, the mint, the amount. **What's hidden:** the recipient. An outside observer cannot tell which API (or which service provider) the agent is paying. A settlement tx eventually lands the funds in the recipient's ATA on base chain, but the link from the agent tx to that settlement is broken by the TEE.
 
