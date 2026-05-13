@@ -266,7 +266,7 @@ describe("px402 hono middleware", () => {
     expect(okB.status).toBe(200);
   });
 
-  it("returns 429 when IP rate limit exceeded", async () => {
+  it("returns 429 with Retry-After in whole seconds per RFC 6585", async () => {
     const { app } = buildApp({
       rateLimit: { issuePerIpPerMinute: 2, windowMs: 60_000 },
     });
@@ -275,6 +275,14 @@ describe("px402 hono middleware", () => {
     expect((await app.request("/api/sentiment", { headers })).status).toBe(402);
     const res = await app.request("/api/sentiment", { headers });
     expect(res.status).toBe(429);
-    expect(res.headers.get("Retry-After")).toBeTruthy();
+
+    const retryAfter = res.headers.get("Retry-After");
+    expect(retryAfter).toBeTruthy();
+    // RFC 6585: Retry-After is whole seconds (integer string), not ms.
+    expect(retryAfter).toMatch(/^\d+$/);
+    const secs = Number(retryAfter);
+    // Bucket window is 60s; remaining seconds should fall within (0, 60].
+    expect(secs).toBeGreaterThan(0);
+    expect(secs).toBeLessThanOrEqual(60);
   });
 });

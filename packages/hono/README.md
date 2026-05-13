@@ -73,6 +73,13 @@ interface Px402HonoConfig {
 }
 ```
 
+## Rate limiting
+
+On 429, the middleware sets `Retry-After` in whole seconds per
+[RFC 6585](https://datatracker.ietf.org/doc/html/rfc6585#section-4). Clients
+that respect the header back off correctly; `@px402/client` does this
+automatically.
+
 ## Reference server
 
 [`apps/demo-apis`](https://github.com/Allen-Saji/px402/tree/main/apps/demo-apis) is a working Hono server using this middleware with three priced routes.

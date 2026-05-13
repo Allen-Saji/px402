@@ -271,6 +271,38 @@ describe("PrivateTransferSubscriber (polling)", () => {
     expect(sub2.lookupByClientRefId("42")).toBeDefined();
   });
 
+  it("emits stalled after 30s of consecutive RPC 5xx failures", async () => {
+    // Use a fake clock to advance past STALLED_THRESHOLD_MS without waiting in real time.
+    vi.useFakeTimers();
+    try {
+      const failingFetch = vi.fn(
+        async () => new Response("upstream blew up", { status: 503 }),
+      );
+      const sub = new PrivateTransferSubscriber({
+        rpcUrl: "http://rpc.test",
+        queuePda: QUEUE,
+        receiverWallet: RECEIVER,
+        pollIntervalMs: 100,
+        initialWatermark: "seed",
+        fetch: failingFetch as unknown as typeof fetch,
+      });
+      const stalls: unknown[] = [];
+      sub.on("stalled", (e) => stalls.push(e));
+      await sub.start();
+
+      // Run poll loop forward past the 30s threshold via fake timers.
+      for (let i = 0; i < 350; i++) {
+        await vi.advanceTimersByTimeAsync(100);
+      }
+      vi.useRealTimers();
+      await sub.stop();
+
+      expect(stalls.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("stop() awaits in-flight poll and aborts pending fetch", async () => {
     // Fetch that takes a long time unless aborted, simulating a slow RPC.
     let aborted = false;

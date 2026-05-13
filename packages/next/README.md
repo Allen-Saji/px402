@@ -49,6 +49,13 @@ export const GET = withPx402(
 - **Long-running subscriber.** `PrivateTransferSubscriber` runs continuously and polls the ER queue PDA. **It will not work on Vercel serverless** (functions are ephemeral). Run on a long-lived Node process: Railway, Fly, Render (paid tier — free tier sleeps), or self-hosted.
 - **Hot reloads.** In dev, hoist the subscriber on `globalThis` to avoid spawning a new poller per route file.
 
+## Rate limiting
+
+On 429, the wrapper sets `Retry-After` in whole seconds per
+[RFC 6585](https://datatracker.ietf.org/doc/html/rfc6585#section-4). Clients
+that respect the header back off correctly; `@px402/client` does this
+automatically.
+
 ## Config
 
 `Px402NextConfig` is the same as [`HandlerConfig`](../core) from `@px402/core`. See the [Hono README](../hono) for the full field reference — Next inherits the same shape.

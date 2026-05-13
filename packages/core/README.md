@@ -118,6 +118,47 @@ process.on("SIGTERM", async () => {
 After `stop()` resolves, no further `tick` / `error` / `stalled` events
 will fire.
 
+## RPC failure handling
+
+The subscriber polls a single `rpcUrl`. Transient errors (HTTP 5xx, network
+flap, JSON-RPC error) are caught and the poll re-scheduled — payments aren't
+dropped, just delayed by one poll interval (~500 ms).
+
+If polls keep failing for `STALLED_THRESHOLD_MS` (30s, not configurable in
+v0.1), the `stalled` event fires. Wire it to your alerting:
+
+```ts
+subscriber.on("stalled", ({ lastSuccessfulPollAt, error }) => {
+  metrics.gauge("px402.subscriber.stall_age_ms", Date.now() - lastSuccessfulPollAt);
+  pager.page("px402 subscriber stalled", { error: error.message });
+});
+```
+
+Single-RPC failure model is intentional for v0.1 — most production deploys
+front their MagicBlock endpoint with Helius or Triton anyway and rely on the
+provider's own failover. Multi-RPC pool with health-checking is on the
+v0.2 roadmap (see `KNOWN_LIMITATIONS.md`).
+
+If your RPC has a persistent outage, redeploy with a new `rpcUrl` env var —
+the persisted watermark (above) ensures no payments are dropped during the
+swap.
+
+## Observability hooks
+
+The subscriber extends `EventEmitter` with four events:
+
+| Event | Fires on | Use |
+|---|---|---|
+| `ready` | initial watermark seed complete | wire to readiness probe |
+| `tick` | a verified transfer indexed | normally consumed inside the middleware |
+| `error` | chunk-apply failure or watermark-persist failure | Sentry / Datadog / structured log |
+| `stalled` | 30s of consecutive failed polls | alerting; rotate `rpcUrl` if persistent |
+
+```ts
+subscriber.on("error", (err) => Sentry.captureException(err));
+subscriber.on("stalled", (e) => log.error("subscriber stalled", e));
+```
+
 ## Errors
 
 `InvalidTokenError`, `ExpiredTokenError`, `ReplayError` — all extend `Px402Error` with a `code` string.
