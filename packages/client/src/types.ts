@@ -86,3 +86,44 @@ export class MaxRetriesExceededError extends Px402ClientError {
     this.name = "MaxRetriesExceededError";
   }
 }
+
+/**
+ * Phase at which a `deposit()` or `withdraw()` call failed. Adopters use this
+ * to decide whether a blind retry is safe.
+ *
+ * - `build`   — failed before any tx was submitted. Safe to retry.
+ * - `submit`  — RPC rejected sendRawTransaction. Safe to retry (rebuild gets a fresh blockhash).
+ * - `confirm` — tx was submitted to the network; confirmation timed out or errored.
+ *               The tx may still land. Check on-chain via `partialSignature`
+ *               before retrying or your funds could move twice.
+ */
+export type DepositFailurePhase = "build" | "submit" | "confirm";
+
+export class Px402DepositError extends Px402ClientError {
+  constructor(
+    message: string,
+    public readonly phase: DepositFailurePhase,
+    /**
+     * Transaction signature returned by the RPC before confirmation failed.
+     * Only populated when `phase === "confirm"`. Use it to check whether the
+     * tx actually landed before retrying.
+     */
+    public readonly partialSignature?: string,
+    public override readonly cause?: unknown,
+  ) {
+    super(message, "DEPOSIT_FAILED");
+    this.name = "Px402DepositError";
+  }
+}
+
+export class Px402WithdrawError extends Px402ClientError {
+  constructor(
+    message: string,
+    public readonly phase: DepositFailurePhase,
+    public readonly partialSignature?: string,
+    public override readonly cause?: unknown,
+  ) {
+    super(message, "WITHDRAW_FAILED");
+    this.name = "Px402WithdrawError";
+  }
+}

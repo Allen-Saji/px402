@@ -79,8 +79,59 @@ await client.fetch(url, init, {
 | `PaymentRequiredError` | Server returned 402 without payment headers |
 | `InsufficientBalanceError` | PER balance < required amount |
 | `MaxRetriesExceededError` | Retry budget exhausted before crank verified |
+| `Px402DepositError` | `deposit()` failed; carries `phase` + `partialSignature` |
+| `Px402WithdrawError` | `withdraw()` failed; carries `phase` + `partialSignature` |
 
 All extend `Px402ClientError` with a `code` string.
+
+## Safe-retry semantics for deposit / withdraw
+
+`deposit()` and `withdraw()` move SPL tokens on the base chain. They are
+**not** automatically idempotent — if the call throws mid-flight, you must
+inspect the failure before retrying or you risk moving funds twice.
+
+On failure, both methods throw a typed error (`Px402DepositError` /
+`Px402WithdrawError`) carrying a `phase` field:
+
+| phase | What happened | Safe to retry? |
+|---|---|---|
+| `build` | MagicBlock API rejected the request. No tx submitted. | Yes, retry directly. |
+| `submit` | RPC rejected `sendRawTransaction`. Stale blockhash, network, etc. | Yes — rebuild gets a fresh blockhash. |
+| `confirm` | Tx was submitted, confirmation failed or timed out. | **No — check on-chain first.** Tx may still land. |
+
+On `confirm` failures the error carries `partialSignature` — the signature
+the RPC returned before confirmation failed. Look it up on Solscan or via
+`getTransaction` before retrying:
+
+```ts
+import { Px402DepositError } from "@px402/client";
+
+try {
+  await client.deposit(1_000_000n);
+} catch (err) {
+  if (err instanceof Px402DepositError && err.phase === "confirm") {
+    const sig = err.partialSignature;
+    // Check on-chain: did it land? If yes, no retry needed.
+    const status = await connection.getSignatureStatus(sig);
+    if (status.value?.confirmationStatus) {
+      // Already on-chain — record the sig and move on.
+      return sig;
+    }
+    // Tx never landed (blockhash expired before relay). Safe to rebuild.
+  }
+  throw err;
+}
+```
+
+For `build` and `submit` failures a blind retry is fine.
+
+## Idempotency for transfer
+
+`transfer()` uses retries on transient errors (stale blockhash, network blip)
+inside the 3-attempt loop. Each attempt rebuilds with a fresh blockhash so a
+race where two transfers land for one call is structurally prevented. Pass an
+explicit `clientRefId` when you need server-side reconciliation, since the
+payment subscriber dedupes by it.
 
 ## Defaults
 

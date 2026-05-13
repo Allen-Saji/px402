@@ -1,7 +1,11 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 import { PaymentsApi } from "../src/payments-api.js";
-import { Px402ClientError } from "../src/types.js";
+import {
+  Px402ClientError,
+  Px402DepositError,
+  Px402WithdrawError,
+} from "../src/types.js";
 
 const MINT = "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse";
 
@@ -127,6 +131,41 @@ describe("PaymentsApi request shape", () => {
     const api = buildApi(fetchMock);
     const tooBig = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
     await expect(api.deposit(tooBig)).rejects.toThrow(/MAX_SAFE_INTEGER/);
+  });
+
+  it("deposit wraps build-phase failure in Px402DepositError with cause", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response("upstream down", { status: 503 }),
+    );
+    const api = buildApi(fetchMock);
+    try {
+      await api.deposit(1_000_000n);
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(Px402DepositError);
+      const e = err as Px402DepositError;
+      expect(e.phase).toBe("build");
+      expect(e.partialSignature).toBeUndefined();
+      expect(e.cause).toBeInstanceOf(Px402ClientError);
+      expect(e.message).toMatch(/503/);
+    }
+  });
+
+  it("withdraw wraps build-phase failure in Px402WithdrawError with cause", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response("upstream down", { status: 502 }),
+    );
+    const api = buildApi(fetchMock);
+    try {
+      await api.withdraw(500_000n);
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(Px402WithdrawError);
+      const e = err as Px402WithdrawError;
+      expect(e.phase).toBe("build");
+      expect(e.partialSignature).toBeUndefined();
+      expect(e.cause).toBeInstanceOf(Px402ClientError);
+    }
   });
 
   it("private-balance runs the challenge/login handshake and attaches Bearer token", async () => {

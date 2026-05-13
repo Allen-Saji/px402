@@ -11,7 +11,25 @@ import type {
   BuiltTransactionResponse,
   TransferVisibility,
 } from "./types.js";
-import { Px402ClientError } from "./types.js";
+import { Px402ClientError, Px402DepositError, Px402WithdrawError } from "./types.js";
+import type { DepositFailurePhase } from "./types.js";
+
+/**
+ * Internal sentinel thrown by signAndSubmit when the tx fails after a
+ * signature has been issued. Public-facing wrappers (deposit/withdraw) catch
+ * this and re-throw a typed user-facing error.
+ */
+class SubmitFailure extends Error {
+  constructor(
+    message: string,
+    public readonly phase: DepositFailurePhase,
+    public readonly partialSignature?: string,
+    public override readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = "SubmitFailure";
+  }
+}
 
 /**
  * Thin wrapper over the MagicBlock Private Payments REST API.
@@ -52,8 +70,25 @@ export class PaymentsApi {
       initIfMissing: true,
       initVaultIfMissing: true,
     };
-    const built = await this.postBuild("/v1/spl/deposit", body);
-    return this.signAndSubmit(built);
+    let built;
+    try {
+      built = await this.postBuild("/v1/spl/deposit", body);
+    } catch (err) {
+      throw new Px402DepositError(
+        err instanceof Error ? err.message : String(err),
+        "build",
+        undefined,
+        err,
+      );
+    }
+    try {
+      return await this.signAndSubmit(built);
+    } catch (err) {
+      if (err instanceof SubmitFailure) {
+        throw new Px402DepositError(err.message, err.phase, err.partialSignature, err.cause);
+      }
+      throw err;
+    }
   }
 
   async withdraw(amount: bigint): Promise<string> {
@@ -63,8 +98,25 @@ export class PaymentsApi {
       mint: this.cfg.mint,
       cluster: this.cfg.cluster,
     };
-    const built = await this.postBuild("/v1/spl/withdraw", body);
-    return this.signAndSubmit(built);
+    let built;
+    try {
+      built = await this.postBuild("/v1/spl/withdraw", body);
+    } catch (err) {
+      throw new Px402WithdrawError(
+        err instanceof Error ? err.message : String(err),
+        "build",
+        undefined,
+        err,
+      );
+    }
+    try {
+      return await this.signAndSubmit(built);
+    } catch (err) {
+      if (err instanceof SubmitFailure) {
+        throw new Px402WithdrawError(err.message, err.phase, err.partialSignature, err.cause);
+      }
+      throw err;
+    }
   }
 
   async transfer(opts: {
@@ -243,21 +295,52 @@ export class PaymentsApi {
 
     const serialized = built.version === "v0" ? signV0(raw, this.cfg.wallet) : signLegacy(raw, this.cfg.wallet);
 
-    const signature = await connection.sendRawTransaction(serialized, {
-      // ER enforces delegation after submit in ways the simulator does not
-      // model. Preflight false-positives on valid private transfers, so skip.
-      skipPreflight: true,
-      maxRetries: 3,
-    });
+    let signature: string;
+    try {
+      signature = await connection.sendRawTransaction(serialized, {
+        // ER enforces delegation after submit in ways the simulator does not
+        // model. Preflight false-positives on valid private transfers, so skip.
+        skipPreflight: true,
+        maxRetries: 3,
+      });
+    } catch (err) {
+      throw new SubmitFailure(
+        err instanceof Error ? err.message : String(err),
+        "submit",
+        undefined,
+        err,
+      );
+    }
 
-    await connection.confirmTransaction(
-      {
+    try {
+      const result = await connection.confirmTransaction(
+        {
+          signature,
+          blockhash: built.recentBlockhash,
+          lastValidBlockHeight: built.lastValidBlockHeight,
+        },
+        "confirmed",
+      );
+      if (result.value.err) {
+        // Tx landed but failed on-chain. Money did not move; we still surface
+        // the sig so adopters can inspect via explorer.
+        throw new SubmitFailure(
+          `on-chain failure: ${JSON.stringify(result.value.err)}`,
+          "confirm",
+          signature,
+        );
+      }
+    } catch (err) {
+      if (err instanceof SubmitFailure) throw err;
+      // Confirmation timed out or RPC blipped. The tx MAY still land — adopter
+      // must check on-chain via the partial signature before retrying.
+      throw new SubmitFailure(
+        err instanceof Error ? err.message : String(err),
+        "confirm",
         signature,
-        blockhash: built.recentBlockhash,
-        lastValidBlockHeight: built.lastValidBlockHeight,
-      },
-      "confirmed",
-    );
+        err,
+      );
+    }
 
     return signature;
   }
