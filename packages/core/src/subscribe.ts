@@ -116,6 +116,16 @@ export interface SubscriberConfig {
    * The first poll will return sigs newer than this signature.
    */
   initialWatermark?: string;
+  /**
+   * Fired after each successful poll where the watermark advanced. Adopters
+   * persist the signature here (disk, Redis, DB) so that on restart they can
+   * pass it back via `initialWatermark` to resume from the last known point
+   * instead of dropping payments that landed during the crash window.
+   *
+   * Errors are caught, logged, and re-emitted on the `error` event. The
+   * subscriber keeps polling either way.
+   */
+  onWatermarkAdvance?: (signature: string) => void | Promise<void>;
 }
 
 interface TimedEntry<T> {
@@ -216,6 +226,8 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
   /** Aborts in-flight fetches when stop() is called so shutdown doesn't wait on the full HTTP timeout. */
   private abortController: AbortController | null = null;
 
+  private readonly onWatermarkAdvance?: (signature: string) => void | Promise<void>;
+
   constructor(cfg: SubscriberConfig) {
     super();
     this.cfg = {
@@ -234,6 +246,7 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
       fetch: cfg.fetch ?? fetch,
       ...(cfg.logger ? { logger: cfg.logger } : {}),
     };
+    if (cfg.onWatermarkAdvance) this.onWatermarkAdvance = cfg.onWatermarkAdvance;
   }
 
   async start(): Promise<void> {
@@ -289,6 +302,18 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
       if (timer) clearTimeout(timer);
       this.inFlightPoll = null;
     }
+  }
+
+  /**
+   * Current poll watermark — the signature of the most-recently-seen tx on the
+   * queue PDA. Persist this and pass back via `initialWatermark` on next boot
+   * to resume from the same point instead of dropping payments landed during
+   * the crash window.
+   *
+   * Returns null if no successful poll has happened yet.
+   */
+  getWatermark(): string | null {
+    return this.lastSeenSignature;
   }
 
   lookupByClientRefId(clientRefId: string, now: number = Date.now()): VerifiedTick | undefined {
@@ -393,12 +418,24 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
         }
       }
 
-      if (allChunksOk && candidateWatermark) {
+      let watermarkAdvanced = false;
+      if (allChunksOk && candidateWatermark && candidateWatermark !== this.lastSeenSignature) {
         this.lastSeenSignature = candidateWatermark;
+        watermarkAdvanced = true;
       }
 
       this.maintainProcessedSigsBound();
       this.lastSuccessfulPollAt = Date.now();
+
+      if (watermarkAdvanced && this.onWatermarkAdvance && !this.stopped) {
+        try {
+          await this.onWatermarkAdvance(candidateWatermark!);
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          this.cfg.logger?.error(`[px402] onWatermarkAdvance failed: ${error.message}`);
+          if (!this.stopped) this.emit("error", error);
+        }
+      }
 
       await this.recoverEligibleOrphans();
     } catch (err) {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { PrivateTransferSubscriber } from "../src/subscribe.js";
+import { PrivateTransferSubscriber, type TickEvent } from "../src/subscribe.js";
 
 const QUEUE = "4dA398Eh9P61oGLqebRTYEQD7n4HvwxButoU5NM9C2gu";
 const RECEIVER = "8AxCJeRrtfwNVQ5huVoF9cto7Y4Jvw6bP1TUUs2ZnK56";
@@ -154,6 +154,121 @@ describe("PrivateTransferSubscriber (polling)", () => {
     await sub.stop();
     expect(sub.markSignatureUsed("sig-r")).toBe(true);
     expect(sub.markSignatureUsed("sig-r")).toBe(false);
+  });
+
+  it("onWatermarkAdvance fires with the new sig after each advance, exposes via getWatermark", async () => {
+    const state: RouteState = {
+      sigs: [{ signature: "seed", slot: 1, err: null }],
+      txs: {},
+    };
+    const fetchMock = makeFetch(state);
+    const advances: string[] = [];
+    const sub = new PrivateTransferSubscriber({
+      rpcUrl: "http://rpc.test",
+      queuePda: QUEUE,
+      receiverWallet: RECEIVER,
+      pollIntervalMs: 10,
+      fetch: fetchMock as unknown as typeof fetch,
+      onWatermarkAdvance: (sig) => {
+        advances.push(sig);
+      },
+    });
+    await sub.start();
+    expect(sub.getWatermark()).toBe("seed");
+    // Start doesn't fire the callback — only polls do.
+    expect(advances).toEqual([]);
+
+    state.sigs = [{ signature: "newer", slot: 2, err: null }, ...state.sigs];
+    state.txs.newer = { logs: paymentLogs("321", RECEIVER, "9990") };
+
+    await new Promise<void>((resolve) => sub.once("tick", () => resolve()));
+    // Give the post-poll callback a tick to run.
+    await new Promise((r) => setTimeout(r, 20));
+    await sub.stop();
+
+    expect(advances).toContain("newer");
+    expect(sub.getWatermark()).toBe("newer");
+  });
+
+  it("onWatermarkAdvance throwing emits error but keeps subscriber alive", async () => {
+    const state: RouteState = {
+      sigs: [{ signature: "seed", slot: 1, err: null }],
+      txs: {},
+    };
+    const fetchMock = makeFetch(state);
+    const errors: Error[] = [];
+    const sub = new PrivateTransferSubscriber({
+      rpcUrl: "http://rpc.test",
+      queuePda: QUEUE,
+      receiverWallet: RECEIVER,
+      pollIntervalMs: 10,
+      fetch: fetchMock as unknown as typeof fetch,
+      onWatermarkAdvance: () => {
+        throw new Error("disk full");
+      },
+    });
+    sub.on("error", (e) => errors.push(e));
+    await sub.start();
+
+    state.sigs = [{ signature: "newer", slot: 2, err: null }, ...state.sigs];
+    state.txs.newer = { logs: paymentLogs("999", RECEIVER, "9990") };
+    await new Promise<void>((resolve) => sub.once("tick", () => resolve()));
+    await new Promise((r) => setTimeout(r, 20));
+    await sub.stop();
+
+    expect(errors.map((e) => e.message)).toContain("disk full");
+    // Subscriber still indexed the tick — failure of persistence layer doesn't block payment verification.
+    expect(sub.lookupByClientRefId("999")).toBeDefined();
+  });
+
+  it("restart with initialWatermark backfills sigs landed during the crash window", async () => {
+    // Phase 1: a subscriber sees `seed1` only, persists watermark to `persisted`.
+    const state: RouteState = {
+      sigs: [{ signature: "seed1", slot: 1, err: null }],
+      txs: {},
+    };
+    const fetchMock = makeFetch(state);
+    let persisted: string | null = null;
+    const sub1 = new PrivateTransferSubscriber({
+      rpcUrl: "http://rpc.test",
+      queuePda: QUEUE,
+      receiverWallet: RECEIVER,
+      pollIntervalMs: 10,
+      fetch: fetchMock as unknown as typeof fetch,
+      onWatermarkAdvance: (sig) => {
+        persisted = sig;
+      },
+    });
+    await sub1.start();
+    expect(sub1.getWatermark()).toBe("seed1");
+    await sub1.stop();
+    // No real payments landed yet — persisted may still be null because watermark didn't advance past start.
+    persisted ??= "seed1";
+
+    // Phase 2: while server was "down", a real payment landed (sig=crash_window).
+    state.sigs = [
+      { signature: "crash_window", slot: 2, err: null },
+      { signature: "seed1", slot: 1, err: null },
+    ];
+    state.txs.crash_window = { logs: paymentLogs("42", RECEIVER, "9990") };
+
+    // Phase 3: new subscriber boots with persisted watermark instead of current tip.
+    const ticks: TickEvent[] = [];
+    const sub2 = new PrivateTransferSubscriber({
+      rpcUrl: "http://rpc.test",
+      queuePda: QUEUE,
+      receiverWallet: RECEIVER,
+      pollIntervalMs: 10,
+      initialWatermark: persisted,
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+    sub2.on("tick", (e) => ticks.push(e));
+    await sub2.start();
+    await new Promise<void>((resolve) => sub2.once("tick", () => resolve()));
+    await sub2.stop();
+
+    expect(ticks.map((t) => t.clientRefId)).toContain("42");
+    expect(sub2.lookupByClientRefId("42")).toBeDefined();
   });
 
   it("stop() awaits in-flight poll and aborts pending fetch", async () => {

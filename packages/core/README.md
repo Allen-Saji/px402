@@ -55,6 +55,51 @@ if (decision.kind === "next") {
 // otherwise: write decision.headers, status, body
 ```
 
+## Crash-safe watermark persistence
+
+The subscriber tracks a "watermark" — the signature of the most recent tx it
+indexed on the queue PDA. On a clean boot it seeds the watermark with the
+current chain tip, which means **payments that landed during a server crash or
+redeploy are dropped**.
+
+To survive restarts, persist the watermark and pass it back on the next boot:
+
+```ts
+import { PrivateTransferSubscriber, deriveQueuePda } from "@px402/core";
+import { promises as fs } from "node:fs";
+
+const WATERMARK_PATH = "/var/lib/px402/watermark";
+
+async function loadWatermark(): Promise<string | undefined> {
+  try {
+    return (await fs.readFile(WATERMARK_PATH, "utf8")).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+const subscriber = new PrivateTransferSubscriber({
+  rpcUrl: "https://devnet.magicblock.app",
+  queuePda: deriveQueuePda(MINT, VALIDATOR).toBase58(),
+  receiverWallet: SERVER_WALLET,
+  initialWatermark: await loadWatermark(),
+  onWatermarkAdvance: async (sig) => {
+    await fs.writeFile(WATERMARK_PATH, sig);
+  },
+});
+await subscriber.start();
+```
+
+On restart, the subscriber backfills from the persisted watermark instead of
+the current tip, so a payment that landed in the crash window will be picked
+up on the next poll.
+
+The callback errors are caught and re-emitted on `error` — the subscriber
+keeps polling even if your persistence layer is broken, so payment
+verification doesn't stop with disk full.
+
+`getWatermark()` is also exposed for health endpoints and external snapshotting.
+
 ## Graceful shutdown
 
 `subscriber.stop()` is async. It signals the poll loop to halt, aborts any
