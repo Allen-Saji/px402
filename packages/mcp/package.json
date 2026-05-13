@@ -1,6 +1,9 @@
 {
   "name": "@px402/mcp",
-  "version": "0.0.1",
+  "version": "0.1.0-rc.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "MCP server that lets Claude pay for APIs via px402",
   "license": "MIT",
   "author": "Allen Saji <allensaji04@gmail.com>",

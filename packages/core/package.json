@@ -1,6 +1,9 @@
 {
   "name": "@px402/core",
-  "version": "0.0.1",
+  "version": "0.1.0-rc.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "px402 core: HMAC payment tokens, memo verification, rate limiting, PER logsSubscribe",
   "license": "MIT",
   "author": "Allen Saji <allensaji04@gmail.com>",

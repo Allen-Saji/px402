@@ -16,7 +16,11 @@
  *   pnpm --filter px402-scripts soak -- --csv /tmp/px402-soak.csv
  */
 import { existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Repo root = parent of scripts/. Used to make --csv paths cwd-independent.
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 import { PrivateTransferSubscriber, deriveQueuePda } from "@px402/core";
 import {
   PX402_EPHEMERAL_RPC_URL,
@@ -43,8 +47,12 @@ function parseArgs(): CliArgs {
     const a = argv[i];
     if (a === "--duration") args.durationMin = Number(argv[++i]);
     else if (a === "--interval") args.intervalSec = Number(argv[++i]);
-    else if (a === "--csv") args.csvPath = argv[++i] ?? args.csvPath;
-    else if (a === "--help" || a === "-h") {
+    else if (a === "--csv") {
+      const raw = argv[++i];
+      // Resolve relative paths against the repo root so --csv doesn't depend
+      // on the caller's cwd (pnpm runs scripts from packages/scripts/).
+      args.csvPath = raw ? (isAbsolute(raw) ? raw : resolve(REPO_ROOT, raw)) : args.csvPath;
+    } else if (a === "--help" || a === "-h") {
       console.log("Usage: pnpm soak -- [--duration MIN] [--interval SEC] [--csv PATH]");
       process.exit(0);
     }
