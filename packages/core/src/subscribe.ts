@@ -211,6 +211,10 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
   private pollTimer: NodeJS.Timeout | null = null;
   private stopped = false;
   private nextRpcId = 1;
+  /** Promise for the currently-executing poll, if any. Awaited by stop() so callers know shutdown is complete. */
+  private inFlightPoll: Promise<void> | null = null;
+  /** Aborts in-flight fetches when stop() is called so shutdown doesn't wait on the full HTTP timeout. */
+  private abortController: AbortController | null = null;
 
   constructor(cfg: SubscriberConfig) {
     super();
@@ -233,6 +237,8 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
   }
 
   async start(): Promise<void> {
+    this.stopped = false;
+    this.abortController = new AbortController();
     if (this.cfg.initialWatermark) {
       this.lastSeenSignature = this.cfg.initialWatermark;
       this.cfg.logger?.info(
@@ -261,10 +267,28 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
     this.emit("ready");
   }
 
-  stop(): void {
+  /**
+   * Gracefully stop the subscriber. Awaits any in-flight poll so callers know
+   * no more `tick` / `error` / `stalled` events will fire after the returned
+   * promise resolves. In-flight RPC fetches are aborted via AbortController so
+   * shutdown doesn't wait the full HTTP timeout.
+   *
+   * @param timeoutMs Max wait for in-flight work before force-resolving. Default 5000.
+   */
+  async stop(timeoutMs = 5000): Promise<void> {
     this.stopped = true;
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
+    if (this.abortController) this.abortController.abort();
+    if (this.inFlightPoll) {
+      let timer: NodeJS.Timeout | undefined;
+      const timeoutP = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      });
+      await Promise.race([this.inFlightPoll.catch(() => undefined), timeoutP]);
+      if (timer) clearTimeout(timer);
+      this.inFlightPoll = null;
+    }
   }
 
   lookupByClientRefId(clientRefId: string, now: number = Date.now()): VerifiedTick | undefined {
@@ -315,7 +339,12 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
 
   private schedule(): void {
     if (this.stopped) return;
-    this.pollTimer = setTimeout(() => void this.pollOnce(), this.cfg.pollIntervalMs);
+    this.pollTimer = setTimeout(() => {
+      const p = this.pollOnce();
+      this.inFlightPoll = p.finally(() => {
+        if (this.inFlightPoll === p) this.inFlightPoll = null;
+      });
+    }, this.cfg.pollIntervalMs);
   }
 
   private async pollOnce(): Promise<void> {
@@ -347,11 +376,16 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
       let allChunksOk = true;
       const concurrency = this.cfg.fetchConcurrency;
       for (let i = 0; i < fresh.length; i += concurrency) {
+        if (this.stopped) {
+          allChunksOk = false;
+          break;
+        }
         const chunk = fresh.slice(i, i + concurrency);
         try {
           await this.processChunk(chunk);
         } catch (err) {
           allChunksOk = false;
+          if (this.stopped) break;
           const error = err instanceof Error ? err : new Error(String(err));
           this.cfg.logger?.error(`[px402] chunk apply failed: ${error.message}`);
           this.emit("error", error);
@@ -368,6 +402,7 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
 
       await this.recoverEligibleOrphans();
     } catch (err) {
+      if (this.stopped) return;
       const error = err instanceof Error ? err : new Error(String(err));
       this.cfg.logger?.warn(`[px402] poll error: ${error.message}`);
       const elapsed = Date.now() - this.lastSuccessfulPollAt;
@@ -375,7 +410,7 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
         this.emit("stalled", { lastSuccessfulPollAt: this.lastSuccessfulPollAt, error });
       }
     } finally {
-      this.schedule();
+      if (!this.stopped) this.schedule();
     }
   }
 
@@ -678,10 +713,12 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
 
   private async rpc<T>(method: string, params: unknown[]): Promise<T> {
     const id = this.nextRpcId++;
+    const signal = this.abortController?.signal;
     const res = await this.cfg.fetch(this.cfg.rpcUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+      ...(signal ? { signal } : {}),
     });
     if (!res.ok) {
       throw new Error(`${method} HTTP ${res.status}`);

@@ -55,6 +55,24 @@ if (decision.kind === "next") {
 // otherwise: write decision.headers, status, body
 ```
 
+## Graceful shutdown
+
+`subscriber.stop()` is async. It signals the poll loop to halt, aborts any
+in-flight RPC fetch via `AbortController`, and resolves once the current poll
+has settled (or after `timeoutMs`, default 5s). Pair it with your HTTP
+server's drain step:
+
+```ts
+process.on("SIGTERM", async () => {
+  await subscriber.stop();
+  await server.close();
+  process.exit(0);
+});
+```
+
+After `stop()` resolves, no further `tick` / `error` / `stalled` events
+will fire.
+
 ## Errors
 
 `InvalidTokenError`, `ExpiredTokenError`, `ReplayError` — all extend `Px402Error` with a `code` string.

@@ -145,15 +145,18 @@ async function main() {
     console.log(`[px402 demo-apis] listening on http://localhost:${info.port}`);
   });
 
-  const shutdown = () => {
+  let shuttingDown = false;
+  const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log("[px402 demo-apis] shutting down");
     clearInterval(crankTimer);
-    subscriber.stop();
+    await subscriber.stop();
     server.close();
     process.exit(0);
   };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
 }
 
 function hashToUnit(s: string): number {

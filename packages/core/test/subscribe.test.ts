@@ -76,7 +76,7 @@ describe("PrivateTransferSubscriber (polling)", () => {
     const emits: unknown[] = [];
     sub.on("tick", (e) => emits.push(e));
     await sub.start();
-    sub.stop();
+    await sub.stop();
     expect(emits).toHaveLength(0);
     expect(sub.lookupByClientRefId("111")).toBeUndefined();
   });
@@ -105,7 +105,7 @@ describe("PrivateTransferSubscriber (polling)", () => {
 
     const waitTick = new Promise<void>((resolve) => sub.once("tick", () => resolve()));
     await waitTick;
-    sub.stop();
+    await sub.stop();
 
     const hit = sub.lookupByClientRefId("777");
     expect(hit).toEqual({
@@ -136,7 +136,7 @@ describe("PrivateTransferSubscriber (polling)", () => {
     state.txs.nope = { logs: paymentLogs("888", OTHER, "10000") };
 
     await new Promise((r) => setTimeout(r, 40));
-    sub.stop();
+    await sub.stop();
 
     expect(sub.lookupByClientRefId("888")).toBeUndefined();
   });
@@ -151,9 +151,55 @@ describe("PrivateTransferSubscriber (polling)", () => {
       fetch: fetchMock as unknown as typeof fetch,
     });
     await sub.start();
-    sub.stop();
+    await sub.stop();
     expect(sub.markSignatureUsed("sig-r")).toBe(true);
     expect(sub.markSignatureUsed("sig-r")).toBe(false);
+  });
+
+  it("stop() awaits in-flight poll and aborts pending fetch", async () => {
+    // Fetch that takes a long time unless aborted, simulating a slow RPC.
+    let aborted = false;
+    let fetchStarted = false;
+    const slowFetch = vi.fn((_input: string | URL, init?: RequestInit) => {
+      fetchStarted = true;
+      return new Promise<Response>((resolve, reject) => {
+        const t = setTimeout(() => resolve(okRpc({ jsonrpc: "2.0", id: 1, result: [] })), 30_000);
+        if (init?.signal) {
+          init.signal.addEventListener("abort", () => {
+            aborted = true;
+            clearTimeout(t);
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }
+      });
+    });
+    const sub = new PrivateTransferSubscriber({
+      rpcUrl: "http://rpc.test",
+      queuePda: QUEUE,
+      receiverWallet: RECEIVER,
+      pollIntervalMs: 5,
+      // Pre-seed so start() doesn't make an RPC call and we can wait for the poll fetch.
+      initialWatermark: "seed",
+      fetch: slowFetch as unknown as typeof fetch,
+    });
+    const errors: Error[] = [];
+    const stalls: unknown[] = [];
+    sub.on("error", (e) => errors.push(e));
+    sub.on("stalled", (e) => stalls.push(e));
+    await sub.start();
+    // Wait until the first poll's fetch is actually in flight.
+    while (!fetchStarted) await new Promise((r) => setTimeout(r, 5));
+
+    const t0 = Date.now();
+    await sub.stop(2000);
+    const elapsed = Date.now() - t0;
+
+    expect(aborted).toBe(true);
+    expect(elapsed).toBeLessThan(500); // didn't wait the 30s slow-fetch timeout
+    expect(errors).toHaveLength(0); // abort error is swallowed
+    expect(stalls).toHaveLength(0);
   });
 
   it("expires tick entries after ttlMs", async () => {
@@ -181,6 +227,6 @@ describe("PrivateTransferSubscriber (polling)", () => {
 
     await new Promise((r) => setTimeout(r, 80));
     expect(sub.lookupByClientRefId("999")).toBeUndefined();
-    sub.stop();
+    await sub.stop();
   });
 });

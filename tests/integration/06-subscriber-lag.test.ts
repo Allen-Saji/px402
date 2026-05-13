@@ -157,7 +157,7 @@ describe.skipIf(!ENABLED)("06 subscriber lag (orphan backwards-recovery)", () =>
         await new Promise((r) => setTimeout(r, 500));
       }
     } finally {
-      subscriber.stop();
+      await subscriber.stop();
     }
 
     const tick = ticks.find((t) => t.clientRefId === clientRefId);
