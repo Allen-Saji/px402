@@ -159,6 +159,10 @@ subscriber.on("error", (err) => Sentry.captureException(err));
 subscriber.on("stalled", (e) => log.error("subscriber stalled", e));
 ```
 
+## Operations
+
+- [Rotating `PX402_SERVER_SECRET`](https://github.com/Allen-Saji/px402/blob/main/docs/operations/rotate-server-secret.md) — zero-downtime HMAC key rotation using the `{ current, previous }` shape.
+
 ## Errors
 
 `InvalidTokenError`, `ExpiredTokenError`, `ReplayError` — all extend `Px402Error` with a `code` string.

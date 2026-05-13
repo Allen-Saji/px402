@@ -138,6 +138,12 @@ Empirical numbers from a clean devnet run:
 - 30-payment burst over 5 seconds, distinct wallets: **96.7% success, p50 8.3s, p90 15.9s, avg 1.34 retries**
 - Subscriber-lag scenario (insert older than watermark): orphan pop is buffered, backwards-scanned, and resolved within ~5 seconds
 
+## Known limitations
+
+See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) for what's deliberately
+out of scope for 0.1.0 (multi-tenant subscriber, multi-RPC pool,
+persisted in-flight state) along with workarounds for each.
+
 ## License
 
 MIT

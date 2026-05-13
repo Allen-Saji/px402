@@ -8,10 +8,12 @@
   },
   "scripts": {
     "stress:burst": "tsx stress-burst.ts",
+    "soak": "tsx soak.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@px402/client": "workspace:*",
+    "@px402/core": "workspace:*",
     "@solana/web3.js": "^1.95.8",
     "px402-integration-tests": "workspace:*"
   },

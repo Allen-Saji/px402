@@ -201,7 +201,9 @@ interface FetchedTx {
 }
 
 export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
-  private readonly cfg: Required<Omit<SubscriberConfig, "logger" | "fetch">> & {
+  private readonly cfg: Required<
+    Omit<SubscriberConfig, "logger" | "fetch" | "onWatermarkAdvance">
+  > & {
     logger?: SubscriberConfig["logger"];
     fetch: typeof fetch;
   };
