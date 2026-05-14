@@ -1,9 +1,10 @@
 /**
  * px402 demo APIs server.
  *
- * Wires up @px402/hono with a PrivateTransferSubscriber that listens on the
- * MagicBlock ER queue PDA. Also keeps the crank warm by pinging
- * /v1/spl/is-mint-initialized at startup and on an interval.
+ * Wires up @px402/hono with a PrivateTransferSubscriber that watches the
+ * MagicBlock queue PDA on the base chain for ExecuteReadyQueuedTransfer txs.
+ * Also keeps the crank warm by pinging /v1/spl/is-mint-initialized at startup
+ * and on an interval.
  */
 import { serve } from "@hono/node-server";
 import { PrivateTransferSubscriber, deriveQueuePda } from "@px402/core";
@@ -34,7 +35,7 @@ async function main() {
   const queuePda = deriveQueuePda(cfg.mint, cfg.validator ?? VALIDATOR_DEVNET);
 
   console.log("[px402 demo-apis] config:");
-  console.log(`  api base RPC       : ${cfg.baseRpcUrl}`);
+  console.log(`  base RPC (watched) : ${cfg.baseRpcUrl}`);
   console.log(`  ephemeral RPC      : ${cfg.ephemeralRpcUrl}`);
   console.log(`  ephemeral WS       : ${cfg.ephemeralWsUrl}`);
   console.log(`  payments API       : ${cfg.apiUrl}`);
@@ -50,8 +51,9 @@ async function main() {
   );
 
   const subscriber = new PrivateTransferSubscriber({
-    rpcUrl: cfg.ephemeralRpcUrl,
+    rpcUrl: cfg.baseRpcUrl,
     queuePda: queuePda.toBase58(),
+    mint: cfg.mint,
     receiverWallet: cfg.paymentAddress,
     commitment: "finalized",
     ...(cfg.pollIntervalMs !== undefined ? { pollIntervalMs: cfg.pollIntervalMs } : {}),

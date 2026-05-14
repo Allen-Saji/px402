@@ -20,7 +20,7 @@ async function main() {
   const port = Number(process.env.PORT ?? 8902);
   const paymentAddress = required("PX402_PAYMENT_ADDRESS");
   const mint = required("PX402_MINT");
-  const ephemeralRpcUrl = process.env.PX402_EPHEMERAL_RPC_URL ?? "https://devnet.magicblock.app";
+  const baseRpcUrl = process.env.PX402_BASE_RPC_URL ?? "https://rpc.magicblock.app/devnet";
   const apiUrl = process.env.PX402_API_URL ?? "https://payments.magicblock.app";
   const cluster = process.env.PX402_CLUSTER ?? "devnet";
   const validator = process.env.PX402_VALIDATOR ?? VALIDATOR_DEVNET;
@@ -34,8 +34,9 @@ async function main() {
   await fetch(`${apiUrl}/v1/spl/is-mint-initialized?mint=${mint}&cluster=${cluster}`).catch(() => {});
 
   const subscriber = new PrivateTransferSubscriber({
-    rpcUrl: ephemeralRpcUrl,
+    rpcUrl: baseRpcUrl,
     queuePda,
+    mint,
     receiverWallet: paymentAddress,
     commitment: "finalized",
   });

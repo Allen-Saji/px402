@@ -1,50 +1,43 @@
 import { EventEmitter } from "node:events";
 
 /**
- * Log lines emitted by the MagicBlock private-transfer crank. Two distinct
- * events appear on the queue PDA:
+ * Watches the MagicBlock private-transfer queue PDA on the base chain for
+ * `ExecuteReadyQueuedTransfer` instructions and emits a verified tick per
+ * delivered payment.
  *
- *   DepositAndQueueTransfer split 1/1 group_id: 1 task_id: 1
- *     client_ref_id: 42 amount: 9990 delay_ms: 0 ready_at: 1776800000000
+ * Each completed transfer surfaces in a single base-chain transaction:
  *
- *   ProcessTransferQueueTick group_id: 1 task_id: 1 client_ref_id: 42
- *     sender: <pubkey> receiver: <pubkey> amount: 9990
+ *   Program DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh invoke [1]
+ *     Program SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2 invoke [2]
+ *     Program log: Instruction: ExecuteReadyQueuedTransfer
+ *     Program log: client_ref_id: <u64>
  *
- * MagicBlock truncates log lines around the 213-character mark. With a u63
- * clientRefId the pop line overflows and the trailing `amount:` field is cut.
- * Amount is recovered from the DepositAndQueue line (which fits) and cross-
- * referenced by clientRefId.
+ * The token transfer is settled inside the same tx and shows up in
+ * `meta.preTokenBalances` / `meta.postTokenBalances`. Sender, receiver, and
+ * amount are recovered from the balance deltas filtered by `mint`.
  */
-const QUEUE_INSERT_RE =
-  /DepositAndQueueTransfer split \d+\/\d+ group_id: \d+ task_id: \d+ client_ref_id: (\d+) amount: (\d+)/;
-const QUEUE_POP_RE =
-  /ProcessTransferQueueTick group_id: (\d+) task_id: (\d+) client_ref_id: (\d+) sender: (\w+) receiver: (\w+)/;
+const EXECUTE_LINE = "Instruction: ExecuteReadyQueuedTransfer";
+const CLIENT_REF_RE = /client_ref_id:\s*(\d+)/;
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 500;
 /**
- * Safety cap per poll. The queue sees a constant stream of empty
- * ProcessTransferQueueTick txs; without an `until` watermark any limit is too
- * small. We pass `until` below so this is only a fallback for the very first
- * poll after a watermark is lost.
+ * Safety cap per poll. We pass an `until` watermark to bound how far back the
+ * RPC walks, so this only matters on the very first poll after a lost watermark.
  */
 const DEFAULT_POLL_LIMIT = 1000;
 const DEFAULT_COMMITMENT = "finalized" as const;
-const DEFAULT_MAX_ORPHANS = 1000;
 const DEFAULT_FETCH_CONCURRENCY = 16;
 const DEFAULT_NULL_RESULT_RETRIES = 5;
-const DEFAULT_BACKWARDS_SCAN_PER_MINUTE = 5;
 const STALLED_THRESHOLD_MS = 30_000;
-const ORPHAN_RECOVERY_DELAY_MULTIPLIER = 3;
 const PROCESSED_SIGS_HIGH_WATER = 2000;
 const PROCESSED_SIGS_KEEP = 1000;
 
 export interface TickEvent {
-  groupId: string;
-  taskId: string;
   clientRefId: string;
   sender: string;
   receiver: string;
+  /** Amount in the smallest unit of `mint` (e.g. micro-USDC for 6-decimal USDC). */
   amount: string;
   signature: string;
   slot: number;
@@ -61,16 +54,10 @@ export interface VerifiedTick {
 export interface SubscriberStatus {
   /** Wall-clock time of the most recent successful poll. 0 means none yet. */
   lastSuccessfulPollAt: number;
-  /** Pops waiting for a matching insert. Should be near zero in steady state. */
-  orphanCount: number;
-  /** Inserts seen but not yet popped. Bounded by TTL. */
-  queuedCount: number;
   /** Verified ticks indexed by clientRefId. Bounded by TTL. */
   indexedCount: number;
   /** Signatures consumed by `markSignatureUsed` for replay prevention. */
   usedSigCount: number;
-  /** Backwards-recovery scans performed in the last 60s. */
-  recentBackwardsScans: number;
 }
 
 export interface StalledEvent {
@@ -80,14 +67,17 @@ export interface StalledEvent {
 
 export interface SubscriberConfig {
   /**
-   * Ephemeral-rollup JSON-RPC URL (http/https). MagicBlock ER does not deliver
-   * logsSubscribe notifications reliably, so the subscriber polls
-   * getSignaturesForAddress + getTransaction on an interval.
+   * Base-chain JSON-RPC URL (http/https). The crank executes queued private
+   * transfers on the base chain via `ExecuteReadyQueuedTransfer`, so the
+   * subscriber polls `getSignaturesForAddress` + `getTransaction` against the
+   * base RPC, not the ephemeral rollup.
    */
   rpcUrl: string;
   /** Queue PDA = PDA(["queue", mint, validator], SPL-PP). */
   queuePda: string;
-  /** Only emit ticks whose `receiver` matches this wallet. */
+  /** Token mint used to filter the balance deltas (e.g. USDC mint). */
+  mint: string;
+  /** Only emit ticks whose recipient ATA owner matches this wallet. */
   receiverWallet: string;
   /** Polling interval in ms. Default 500. */
   pollIntervalMs?: number;
@@ -95,16 +85,12 @@ export interface SubscriberConfig {
   pollLimit?: number;
   /** Commitment for reads. Default "finalized". */
   commitment?: "processed" | "confirmed" | "finalized";
-  /** How long tick entries, queued amounts, and used-signatures live. Default 10 min. */
+  /** How long tick entries and used-signatures live. Default 10 min. */
   ttlMs?: number;
-  /** Max orphan pops buffered. FIFO eviction beyond this. Default 1000. */
-  maxOrphans?: number;
   /** Parallel fetch concurrency per chunk. Default 16. */
   fetchConcurrency?: number;
   /** Max getTransaction retries on null result before giving up. Default 5. */
   nullResultRetries?: number;
-  /** Max backwards-recovery scans per rolling minute. Default 5. */
-  backwardsScansPerMinute?: number;
   /** Optional custom fetch, for tests. */
   fetch?: typeof fetch;
   /** Logger. Defaults to no-op. */
@@ -112,7 +98,7 @@ export interface SubscriberConfig {
   /**
    * Pre-seed the watermark instead of starting at the current tip. Useful for
    * deliberate replay (recovery from a known checkpoint) or for tests that
-   * need to trigger the orphan-pop / backwards-scan path deterministically.
+   * need to drive a specific signature range deterministically.
    * The first poll will return sigs newer than this signature.
    */
   initialWatermark?: string;
@@ -120,7 +106,7 @@ export interface SubscriberConfig {
    * Fired after each successful poll where the watermark advanced. Adopters
    * persist the signature here (disk, Redis, DB) so that on restart they can
    * pass it back via `initialWatermark` to resume from the last known point
-   * instead of dropping payments that landed during the crash window.
+   * instead of dropping payments landed during the crash window.
    *
    * Errors are caught, logged, and re-emitted on the `error` event. The
    * subscriber keeps polling either way.
@@ -133,37 +119,15 @@ interface TimedEntry<T> {
   expiresAt: number;
 }
 
-interface OrphanPop {
-  groupId: string;
-  taskId: string;
+interface ParsedTick {
+  clientRefId: string;
   sender: string;
   receiver: string;
+  amount: string;
   signature: string;
   slot: number;
-  bufferedAt: number;
-  recoveryAttempted: boolean;
+  txOrder: number;
 }
-
-type ParsedEvent =
-  | {
-      kind: "insert";
-      clientRefId: string;
-      amount: string;
-      signature: string;
-      slot: number;
-      txOrder: number;
-    }
-  | {
-      kind: "pop";
-      groupId: string;
-      taskId: string;
-      clientRefId: string;
-      sender: string;
-      receiver: string;
-      signature: string;
-      slot: number;
-      txOrder: number;
-    };
 
 export interface SubscriberEvents {
   ready: [];
@@ -185,11 +149,23 @@ interface GetSignaturesResult {
   error?: { code: number; message: string };
 }
 
+interface TokenBalance {
+  accountIndex: number;
+  mint: string;
+  owner?: string;
+  uiTokenAmount: { amount: string };
+}
+
 interface GetTransactionResult {
   jsonrpc: "2.0";
   result?: {
     slot: number;
-    meta?: { err?: unknown; logMessages?: string[] };
+    meta?: {
+      err?: unknown;
+      logMessages?: string[];
+      preTokenBalances?: TokenBalance[];
+      postTokenBalances?: TokenBalance[];
+    };
   } | null;
   error?: { code: number; message: string };
 }
@@ -208,16 +184,10 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
     fetch: typeof fetch;
   };
   private readonly clientRefIndex = new Map<string, TimedEntry<VerifiedTick>>();
-  /** clientRefId -> amount captured from DepositAndQueueTransfer log. */
-  private readonly queuedAmounts = new Map<string, TimedEntry<string>>();
   private readonly usedSignatures = new Map<string, number>();
   private readonly processedSigs = new Set<string>();
-  /** Pop logs seen before their matching insert. Resolved on insert arrival or via backwards-scan. */
-  private readonly orphanPops = new Map<string, TimedEntry<OrphanPop>>();
   /** Per-sig retry counter for getTransaction calls returning null result. */
   private readonly nullResultRetries = new Map<string, number>();
-  /** Sliding-window timestamps of recent backwards-recovery scans for rate limiting. */
-  private readonly backwardsScanTimestamps: number[] = [];
   private lastSeenSignature: string | null = null;
   private lastSuccessfulPollAt = 0;
   private pollTimer: NodeJS.Timeout | null = null;
@@ -235,15 +205,14 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
     this.cfg = {
       rpcUrl: cfg.rpcUrl,
       queuePda: cfg.queuePda,
+      mint: cfg.mint,
       receiverWallet: cfg.receiverWallet,
       pollIntervalMs: cfg.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
       pollLimit: cfg.pollLimit ?? DEFAULT_POLL_LIMIT,
       commitment: cfg.commitment ?? DEFAULT_COMMITMENT,
       ttlMs: cfg.ttlMs ?? DEFAULT_TTL_MS,
-      maxOrphans: cfg.maxOrphans ?? DEFAULT_MAX_ORPHANS,
       fetchConcurrency: cfg.fetchConcurrency ?? DEFAULT_FETCH_CONCURRENCY,
       nullResultRetries: cfg.nullResultRetries ?? DEFAULT_NULL_RESULT_RETRIES,
-      backwardsScansPerMinute: cfg.backwardsScansPerMinute ?? DEFAULT_BACKWARDS_SCAN_PER_MINUTE,
       initialWatermark: cfg.initialWatermark ?? "",
       fetch: cfg.fetch ?? fetch,
       ...(cfg.logger ? { logger: cfg.logger } : {}),
@@ -337,15 +306,10 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
 
   /** Snapshot of internal state. Intended for health endpoints and metrics scrape. */
   getStatus(): SubscriberStatus {
-    const now = Date.now();
-    this.pruneBackwardsScans(now);
     return {
       lastSuccessfulPollAt: this.lastSuccessfulPollAt,
-      orphanCount: this.orphanPops.size,
-      queuedCount: this.queuedAmounts.size,
       indexedCount: this.clientRefIndex.size,
       usedSigCount: this.usedSignatures.size,
-      recentBackwardsScans: this.backwardsScanTimestamps.length,
     };
   }
 
@@ -355,12 +319,6 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
     }
     for (const [k, entry] of this.clientRefIndex) {
       if (entry.expiresAt <= now) this.clientRefIndex.delete(k);
-    }
-    for (const [k, entry] of this.queuedAmounts) {
-      if (entry.expiresAt <= now) this.queuedAmounts.delete(k);
-    }
-    for (const [k, entry] of this.orphanPops) {
-      if (entry.expiresAt <= now) this.orphanPops.delete(k);
     }
   }
 
@@ -388,7 +346,6 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
 
       if (result.length === 0) {
         this.lastSuccessfulPollAt = Date.now();
-        await this.recoverEligibleOrphans();
         return;
       }
 
@@ -438,8 +395,6 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
           if (!this.stopped) this.emit("error", error);
         }
       }
-
-      await this.recoverEligibleOrphans();
     } catch (err) {
       if (this.stopped) return;
       const error = err instanceof Error ? err : new Error(String(err));
@@ -454,12 +409,11 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
   }
 
   /**
-   * Process a chunk of fresh signatures atomically:
+   * Process a chunk of fresh signatures:
    *   Phase A — parallel fetch txs (network IO concurrent for speed)
-   *   Phase B — local parse into ParsedEvent[] without state mutation
-   *   Phase C — sort events by (slot ASC, txOrder ASC, kind: insert before pop)
-   *   Phase D — apply sequentially. Inserts always land in queuedAmounts before
-   *             matching pops read from it within the same chunk.
+   *   Phase B — local parse into ParsedTick[] without state mutation
+   *   Phase C — sort events by (slot ASC, txOrder ASC) for deterministic apply
+   *   Phase D — apply sequentially (index + emit)
    *
    * Throws on RPC failure that prevents any progress; the caller stops
    * processing further chunks and the watermark stays put.
@@ -467,24 +421,21 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
   private async processChunk(chunk: SigEntry[]): Promise<void> {
     const fetched = await this.fetchChunkTxs(chunk);
 
-    const events: ParsedEvent[] = [];
+    const ticks: ParsedTick[] = [];
     for (const item of fetched) {
       if (!item.tx) continue;
-      const txEvents = this.extractEvents(item);
-      events.push(...txEvents);
+      const tick = this.extractTick(item);
+      if (tick) ticks.push(tick);
     }
 
-    events.sort((a, b) => {
+    ticks.sort((a, b) => {
       if (a.slot !== b.slot) return a.slot - b.slot;
-      if (a.txOrder !== b.txOrder) return a.txOrder - b.txOrder;
-      // insert before pop within the same tx (they don't share txs in practice)
-      if (a.kind !== b.kind) return a.kind === "insert" ? -1 : 1;
-      return 0;
+      return a.txOrder - b.txOrder;
     });
 
     const expiresAt = Date.now() + this.cfg.ttlMs;
-    for (const ev of events) {
-      this.applyEvent(ev, expiresAt);
+    for (const tick of ticks) {
+      this.applyTick(tick, expiresAt);
     }
   }
 
@@ -527,219 +478,89 @@ export class PrivateTransferSubscriber extends EventEmitter<SubscriberEvents> {
     );
   }
 
-  private extractEvents(item: FetchedTx): ParsedEvent[] {
-    if (!item.tx) return [];
+  /**
+   * Returns a ParsedTick when the tx contains a complete
+   * `ExecuteReadyQueuedTransfer` to our receiver wallet on our mint, undefined
+   * otherwise. Quietly skips txs that don't match (other receivers, other
+   * mints, or unrelated SPL-PP instructions).
+   */
+  private extractTick(item: FetchedTx): ParsedTick | undefined {
+    if (!item.tx) return undefined;
     const logs = item.tx.meta?.logMessages ?? [];
-    const events: ParsedEvent[] = [];
+    if (!logs.some((l) => l.includes(EXECUTE_LINE))) return undefined;
+
+    let clientRefId: string | undefined;
     for (const line of logs) {
-      const insert = line.match(QUEUE_INSERT_RE);
-      if (insert) {
-        const [, clientRefId, amount] = insert as unknown as [string, string, string];
-        events.push({
-          kind: "insert",
-          clientRefId,
-          amount,
-          signature: item.entry.signature,
-          slot: item.tx.slot,
-          txOrder: item.txOrder,
-        });
-        continue;
-      }
-
-      const pop = line.match(QUEUE_POP_RE);
-      if (!pop) continue;
-      const [, groupId, taskId, clientRefId, sender, receiver] = pop as unknown as [
-        string,
-        string,
-        string,
-        string,
-        string,
-        string,
-      ];
-      events.push({
-        kind: "pop",
-        groupId,
-        taskId,
-        clientRefId,
-        sender,
-        receiver,
-        signature: item.entry.signature,
-        slot: item.tx.slot,
-        txOrder: item.txOrder,
-      });
-    }
-    return events;
-  }
-
-  private applyEvent(ev: ParsedEvent, expiresAt: number): void {
-    if (ev.kind === "insert") {
-      this.queuedAmounts.set(ev.clientRefId, { value: ev.amount, expiresAt });
-      const orphanEntry = this.orphanPops.get(ev.clientRefId);
-      if (orphanEntry && orphanEntry.expiresAt > Date.now()) {
-        const orphan = orphanEntry.value;
-        if (orphan.receiver === this.cfg.receiverWallet) {
-          this.completeOrphan(ev.clientRefId, orphan, ev.amount, expiresAt);
-        }
-      }
-      this.orphanPops.delete(ev.clientRefId);
-      return;
-    }
-
-    if (ev.receiver !== this.cfg.receiverWallet) return;
-
-    const queuedAmount = this.queuedAmounts.get(ev.clientRefId)?.value;
-    if (queuedAmount) {
-      const value: VerifiedTick = {
-        clientRefId: ev.clientRefId,
-        sender: ev.sender,
-        receiver: ev.receiver,
-        amount: queuedAmount,
-        signature: ev.signature,
-      };
-      this.clientRefIndex.set(ev.clientRefId, { value, expiresAt });
-      this.emit("tick", { groupId: ev.groupId, taskId: ev.taskId, slot: ev.slot, ...value });
-      return;
-    }
-
-    if (this.orphanPops.size >= this.cfg.maxOrphans) {
-      const oldestKey = this.orphanPops.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.orphanPops.delete(oldestKey);
-        this.cfg.logger?.warn(
-          `[px402] orphan buffer at capacity (${this.cfg.maxOrphans}); evicted oldest`,
-        );
+      const m = line.match(CLIENT_REF_RE);
+      if (m?.[1]) {
+        clientRefId = m[1];
+        break;
       }
     }
+    if (!clientRefId) {
+      this.cfg.logger?.warn(
+        `[px402] sig ${item.entry.signature}: ExecuteReadyQueuedTransfer with no client_ref_id; skipping`,
+      );
+      return undefined;
+    }
 
-    this.orphanPops.set(ev.clientRefId, {
-      value: {
-        groupId: ev.groupId,
-        taskId: ev.taskId,
-        sender: ev.sender,
-        receiver: ev.receiver,
-        signature: ev.signature,
-        slot: ev.slot,
-        bufferedAt: Date.now(),
-        recoveryAttempted: false,
-      },
-      expiresAt,
-    });
-    this.cfg.logger?.info(
-      `[px402] orphan pop ref=${ev.clientRefId} buffered (insert not yet seen)`,
+    const pre = item.tx.meta?.preTokenBalances ?? [];
+    const post = item.tx.meta?.postTokenBalances ?? [];
+
+    // Receiver: an ATA whose owner matches receiverWallet on cfg.mint.
+    // Sender: any ATA on cfg.mint whose balance decreased.
+    const receiverPost = post.find(
+      (b) => b.owner === this.cfg.receiverWallet && b.mint === this.cfg.mint,
     );
-  }
+    if (!receiverPost) return undefined;
 
-  private completeOrphan(
-    clientRefId: string,
-    orphan: OrphanPop,
-    amount: string,
-    expiresAt: number,
-  ): void {
-    const value: VerifiedTick = {
+    const receiverPre = pre.find((b) => b.accountIndex === receiverPost.accountIndex);
+    const recvDelta =
+      BigInt(receiverPost.uiTokenAmount.amount) -
+      BigInt(receiverPre?.uiTokenAmount.amount ?? "0");
+    if (recvDelta <= 0n) return undefined;
+
+    // Sender: same mint, different owner, balance dropped.
+    let sender: string | undefined;
+    for (const preBal of pre) {
+      if (preBal.mint !== this.cfg.mint) continue;
+      if (preBal.owner === this.cfg.receiverWallet) continue;
+      const postBal = post.find((b) => b.accountIndex === preBal.accountIndex);
+      const preAmt = BigInt(preBal.uiTokenAmount.amount);
+      const postAmt = BigInt(postBal?.uiTokenAmount.amount ?? preBal.uiTokenAmount.amount);
+      if (postAmt < preAmt && preBal.owner) {
+        sender = preBal.owner;
+        break;
+      }
+    }
+    if (!sender) {
+      this.cfg.logger?.warn(
+        `[px402] sig ${item.entry.signature}: receiver delta found but no matching sender; skipping`,
+      );
+      return undefined;
+    }
+
+    return {
       clientRefId,
-      sender: orphan.sender,
-      receiver: orphan.receiver,
-      amount,
-      signature: orphan.signature,
+      sender,
+      receiver: this.cfg.receiverWallet,
+      amount: recvDelta.toString(),
+      signature: item.entry.signature,
+      slot: item.tx.slot,
+      txOrder: item.txOrder,
     };
-    this.clientRefIndex.set(clientRefId, { value, expiresAt });
-    this.emit("tick", { groupId: orphan.groupId, taskId: orphan.taskId, slot: orphan.slot, ...value });
-    this.cfg.logger?.info(`[px402] orphan ref=${clientRefId} resolved`);
   }
 
-  private async recoverEligibleOrphans(): Promise<void> {
-    const now = Date.now();
-    const recoveryDelayMs = ORPHAN_RECOVERY_DELAY_MULTIPLIER * this.cfg.pollIntervalMs;
-
-    this.pruneBackwardsScans(now);
-    let remainingBudget = this.cfg.backwardsScansPerMinute - this.backwardsScanTimestamps.length;
-    if (remainingBudget <= 0) return;
-
-    for (const [clientRefId, entry] of this.orphanPops) {
-      if (remainingBudget <= 0) break;
-      if (entry.expiresAt <= now) continue;
-      if (entry.value.recoveryAttempted) continue;
-      if (now - entry.value.bufferedAt < recoveryDelayMs) continue;
-
-      entry.value.recoveryAttempted = true;
-      this.backwardsScanTimestamps.push(Date.now());
-      remainingBudget -= 1;
-
-      try {
-        await this.recoverOrphan(clientRefId, entry.value);
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        this.cfg.logger?.warn(
-          `[px402] orphan recovery ${clientRefId} threw: ${error.message}`,
-        );
-      }
-    }
-  }
-
-  private async recoverOrphan(clientRefId: string, orphan: OrphanPop): Promise<void> {
-    const limits = [50, 200];
-    for (const limit of limits) {
-      const params: [string, { limit: number; before: string }] = [
-        this.cfg.queuePda,
-        { limit, before: orphan.signature },
-      ];
-      const sigs = await this.rpc<GetSignaturesResult>("getSignaturesForAddress", params);
-      const result = sigs.result ?? [];
-      if (result.length === 0) continue;
-
-      const concurrency = this.cfg.fetchConcurrency;
-      for (let i = 0; i < result.length; i += concurrency) {
-        const chunk = result.slice(i, i + concurrency);
-        const fetched = await Promise.all(
-          chunk.map(async (s) => {
-            if (s.err) return null;
-            try {
-              const tx = await this.rpc<GetTransactionResult>("getTransaction", [
-                s.signature,
-                { commitment: this.cfg.commitment, maxSupportedTransactionVersion: 0 },
-              ]);
-              return tx.result ? { sig: s.signature, slot: s.slot, tx: tx.result } : null;
-            } catch {
-              return null;
-            }
-          }),
-        );
-
-        for (const item of fetched) {
-          if (!item) continue;
-          const logs = item.tx.meta?.logMessages ?? [];
-          for (const line of logs) {
-            const insert = line.match(QUEUE_INSERT_RE);
-            if (!insert) continue;
-            const [, ref, amount] = insert as unknown as [string, string, string];
-            if (ref !== clientRefId) continue;
-
-            const expiresAt = Date.now() + this.cfg.ttlMs;
-            this.queuedAmounts.set(clientRefId, { value: amount, expiresAt });
-            this.completeOrphan(clientRefId, orphan, amount, expiresAt);
-            this.orphanPops.delete(clientRefId);
-            this.cfg.logger?.info(
-              `[px402] orphan ref=${clientRefId} recovered via backwards-scan (limit=${limit})`,
-            );
-            return;
-          }
-        }
-      }
-    }
-
-    this.cfg.logger?.error(
-      `[px402] orphan ref=${clientRefId} unrecoverable after backwards-scan`,
-    );
-    this.emit("error", new Error(`px402: orphan ref=${clientRefId} unrecoverable`));
-  }
-
-  private pruneBackwardsScans(now: number): void {
-    const cutoff = now - 60_000;
-    while (this.backwardsScanTimestamps.length > 0) {
-      const oldest = this.backwardsScanTimestamps[0];
-      if (oldest === undefined || oldest >= cutoff) break;
-      this.backwardsScanTimestamps.shift();
-    }
+  private applyTick(tick: ParsedTick, expiresAt: number): void {
+    const value: VerifiedTick = {
+      clientRefId: tick.clientRefId,
+      sender: tick.sender,
+      receiver: tick.receiver,
+      amount: tick.amount,
+      signature: tick.signature,
+    };
+    this.clientRefIndex.set(tick.clientRefId, { value, expiresAt });
+    this.emit("tick", { ...value, slot: tick.slot });
   }
 
   private maintainProcessedSigsBound(): void {

@@ -21,7 +21,7 @@ pnpm add @px402/core
 | Export | Purpose |
 |---|---|
 | `createHandler(config)` | Framework-agnostic decision engine. Returns `decide(ctx)` → `{ kind: "next" }` or `{ kind: "respond", status, headers, body }`. |
-| `PrivateTransferSubscriber` | Polls the MagicBlock ER queue PDA, parses `ProcessTransferQueueTick` logs, and indexes verified transfers by `clientRefId`. |
+| `PrivateTransferSubscriber` | Polls the MagicBlock queue PDA on the base chain, parses `ExecuteReadyQueuedTransfer` logs + token-balance deltas, and indexes verified transfers by `clientRefId`. |
 | `createPaymentToken` / `verifyPaymentToken` | HMAC-signed `v1.<payload>.<hmac>` tokens so the server stays stateless across the pay-then-retry window. |
 | `verifyPayment` | Match an incoming retry against the subscriber's verified-transfer index. |
 | `RateLimiter` | LRU-backed per-IP and per-wallet limiter. |
@@ -79,8 +79,10 @@ async function loadWatermark(): Promise<string | undefined> {
 }
 
 const subscriber = new PrivateTransferSubscriber({
-  rpcUrl: "https://devnet.magicblock.app",
+  // Base-chain RPC. The crank executes ExecuteReadyQueuedTransfer here.
+  rpcUrl: "https://rpc.magicblock.app/devnet",
   queuePda: deriveQueuePda(MINT, VALIDATOR).toBase58(),
+  mint: MINT,
   receiverWallet: SERVER_WALLET,
   initialWatermark: await loadWatermark(),
   onWatermarkAdvance: async (sig) => {

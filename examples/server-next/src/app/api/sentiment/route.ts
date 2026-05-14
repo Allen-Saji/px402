@@ -13,7 +13,7 @@ function required(name: string): string {
 const PAYMENT_ADDRESS = required("PX402_PAYMENT_ADDRESS");
 const MINT = required("PX402_MINT");
 const SERVER_SECRET = required("PX402_SERVER_SECRET");
-const EPHEMERAL_RPC = process.env.PX402_EPHEMERAL_RPC_URL ?? "https://devnet.magicblock.app";
+const BASE_RPC = process.env.PX402_BASE_RPC_URL ?? "https://rpc.magicblock.app/devnet";
 const VALIDATOR = process.env.PX402_VALIDATOR ?? VALIDATOR_DEVNET;
 
 // Hoist on globalThis so dev hot reloads don't spawn duplicate pollers.
@@ -22,8 +22,9 @@ if (!g.__px402Subscriber) {
   const queuePda = deriveQueuePda(MINT, VALIDATOR).toBase58();
   console.log(`[px402-next] queue PDA: ${queuePda}`);
   const sub = new PrivateTransferSubscriber({
-    rpcUrl: EPHEMERAL_RPC,
+    rpcUrl: BASE_RPC,
     queuePda,
+    mint: MINT,
     receiverWallet: PAYMENT_ADDRESS,
     commitment: "finalized",
   });

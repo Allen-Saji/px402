@@ -65,6 +65,24 @@ the problem it solves for most adopters.
 crash during the pay-then-retry window means the agent will retry once
 more after backfill. The token TTL (5 min default) covers this comfortably.
 
+### Devnet crank cadence vs default client retry window
+
+After the 2026-05-13 MagicBlock protocol change moved crank execution to
+the base chain (`ExecuteReadyQueuedTransfer`), devnet crank latency has
+been observed to spike well past the `@px402/client` default retry budget
+(~30s across 4 attempts). When this happens, the client throws
+`MaxRetriesExceededError` even though the subscriber later catches the
+tick correctly.
+
+**Why deferred:** Crank cadence is a MagicBlock-side knob, not a px402
+code path. Mainnet cadence is expected to be sub-second; devnet is best
+effort.
+
+**Workaround for v0.1:** Adopters whose target traffic includes devnet
+should configure `Px402Client` with a longer `retryDelaysMs` array
+(e.g. `[2000, 4000, 8000, 16000, 32000, 64000]`) so the client waits long
+enough for a slow crank to fire.
+
 ### `tokenTtlMs` honored, `STALLED_THRESHOLD_MS` not
 
 `tokenTtlMs` is configurable. The subscriber's "no successful poll for X

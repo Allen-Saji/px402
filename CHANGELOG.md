@@ -5,6 +5,40 @@ All notable changes to px402 will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`@px402/core`**: `PrivateTransferSubscriber` rewritten for MagicBlock's
+  new private-transfer flow. Between 2026-05-08 and 2026-05-13 the crank
+  moved actual transfer execution from the ER queue tick to a base-chain
+  `ExecuteReadyQueuedTransfer` instruction, and the old log shape
+  (`ProcessTransferQueueTick group_id: ... client_ref_id: ... sender: ... receiver: ...`)
+  is gone. The new subscriber polls the queue PDA on the base chain,
+  filters for `Instruction: ExecuteReadyQueuedTransfer`, reads
+  `client_ref_id` from the program log, and recovers `sender` / `receiver`
+  / `amount` from `meta.preTokenBalances` / `meta.postTokenBalances`
+  deltas filtered by mint. Net code is simpler — no insert/pop matching,
+  no orphan recovery, no backwards-scan, no log-truncation workaround.
+- **Breaking (`@px402/core`)**: `SubscriberConfig` now requires `mint`,
+  used to filter the token-balance deltas. `rpcUrl` semantics changed:
+  it must now point at the base chain RPC, not the ephemeral rollup.
+- **Breaking (`@px402/core`)**: `TickEvent` no longer carries `groupId`
+  or `taskId` (those fields no longer exist in the on-chain log).
+- All adopters (`apps/demo-apis`, `examples/server-express`,
+  `examples/server-next`) updated to wire `PX402_BASE_RPC_URL` into the
+  subscriber and pass `mint`.
+- `SubscriberStatus.orphanCount`, `.queuedCount`, and
+  `.recentBackwardsScans` removed — those state machines are obsolete in
+  the new model.
+
+### Validation
+
+Replay against real on-chain data: pointing the new subscriber at the
+known-good 2026-05-13 crank batch (18 successful transfers + 1 fresh one
+from a same-day smoke run) emits the expected 19 ticks with correct
+`clientRefId`, `sender`, `receiver`, `amount`, and `signature`.
+
 ## [0.1.0-rc.0] — 2026-05-13
 
 First production-ready cut. Hardens the subscriber for crash recovery,

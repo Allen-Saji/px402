@@ -37,7 +37,7 @@ function bootServer(serverPubkey: string, port: number): { child: ChildProcess; 
     PX402_PAYMENT_ADDRESS: serverPubkey,
     PX402_MINT: "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse",
     PX402_API_URL: "https://payments.magicblock.app",
-    PX402_EPHEMERAL_RPC_URL: "https://devnet.magicblock.app",
+    PX402_BASE_RPC_URL: "https://rpc.magicblock.app/devnet",
     PX402_VALIDATOR: "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57",
     PX402_CLUSTER: "devnet",
     PX402_SERVER_SECRET: `smoke_${Date.now()}_${Math.random().toString(36).slice(2)}`,

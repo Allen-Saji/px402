@@ -1,23 +1,71 @@
 import { describe, expect, it, vi } from "vitest";
-import { PrivateTransferSubscriber, type TickEvent } from "../src/subscribe.js";
+import {
+  PrivateTransferSubscriber,
+  type SubscriberConfig,
+  type TickEvent,
+} from "../src/subscribe.js";
 
 const QUEUE = "4dA398Eh9P61oGLqebRTYEQD7n4HvwxButoU5NM9C2gu";
 const RECEIVER = "8AxCJeRrtfwNVQ5huVoF9cto7Y4Jvw6bP1TUUs2ZnK56";
 const OTHER = "9OtherReceiverXxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+const MINT = "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse";
+const OTHER_MINT = "9DiffMintXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 
-function queueInsertLog(clientRefId: string, amount: string) {
-  return `Program log: DepositAndQueueTransfer split 1/1 group_id: 1 task_id: 1 client_ref_id: ${clientRefId} amount: ${amount} delay_ms: 0 ready_at: 1776800000000`;
+interface TokenBalance {
+  accountIndex: number;
+  mint: string;
+  owner: string;
+  uiTokenAmount: { amount: string };
 }
 
-function tickPopLog(clientRefId: string, receiver: string) {
-  // Matches the pop log format; amount field is intentionally omitted to
-  // model MagicBlock's log truncation on long clientRefIds.
-  return `Program log: ProcessTransferQueueTick group_id: 1 task_id: 1 client_ref_id: ${clientRefId} sender: SENDER${clientRefId} receiver: ${receiver}`;
+interface FixtureTx {
+  logs: string[];
+  pre: TokenBalance[];
+  post: TokenBalance[];
 }
 
-/** Simpler helper: one tx with both insert + pop logs. */
-function paymentLogs(clientRefId: string, receiver: string, amount: string) {
-  return [queueInsertLog(clientRefId, amount), tickPopLog(clientRefId, receiver)];
+/**
+ * Build a fixture tx that mimics a base-chain ExecuteReadyQueuedTransfer:
+ * - logs include the marker line + `client_ref_id: N`
+ * - receiver ATA gains `amount` on mint
+ * - sender ATA loses `amount` on mint
+ */
+function paymentTx(opts: {
+  clientRefId: string;
+  sender: string;
+  receiver: string;
+  amount: string;
+  mint?: string;
+  /** Override to omit the marker line — used to test the "not us" filter. */
+  withoutExecuteLine?: boolean;
+  /** Override to omit the client_ref_id line — used to test fallthrough. */
+  withoutRefId?: boolean;
+}): FixtureTx {
+  const mint = opts.mint ?? MINT;
+  const baseReceiver = 100_000n;
+  const baseSender = 1_000_000n;
+  const amt = BigInt(opts.amount);
+  const logs = [
+    "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+    "Program ComputeBudget111111111111111111111111111111 success",
+    "Program DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh invoke [1]",
+    "Program SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2 invoke [2]",
+    ...(opts.withoutExecuteLine ? [] : ["Program log: Instruction: ExecuteReadyQueuedTransfer"]),
+    ...(opts.withoutRefId ? [] : [`Program log: client_ref_id: ${opts.clientRefId}`]),
+    "Program SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2 success",
+    "Program DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh success",
+  ];
+  return {
+    logs,
+    pre: [
+      { accountIndex: 2, mint, owner: opts.receiver, uiTokenAmount: { amount: baseReceiver.toString() } },
+      { accountIndex: 6, mint, owner: opts.sender, uiTokenAmount: { amount: (baseSender + amt).toString() } },
+    ],
+    post: [
+      { accountIndex: 2, mint, owner: opts.receiver, uiTokenAmount: { amount: (baseReceiver + amt).toString() } },
+      { accountIndex: 6, mint, owner: opts.sender, uiTokenAmount: { amount: baseSender.toString() } },
+    ],
+  };
 }
 
 function okRpc(body: unknown): Response {
@@ -29,7 +77,7 @@ function okRpc(body: unknown): Response {
 
 interface RouteState {
   sigs: Array<{ signature: string; slot: number; err: null | unknown }>;
-  txs: Record<string, { logs: string[] }>;
+  txs: Record<string, FixtureTx>;
 }
 
 function makeFetch(state: RouteState) {
@@ -47,10 +95,35 @@ function makeFetch(state: RouteState) {
       return okRpc({
         jsonrpc: "2.0",
         id: 1,
-        result: tx ? { slot: 1, meta: { err: null, logMessages: tx.logs } } : null,
+        result: tx
+          ? {
+              slot: 1,
+              meta: {
+                err: null,
+                logMessages: tx.logs,
+                preTokenBalances: tx.pre,
+                postTokenBalances: tx.post,
+              },
+            }
+          : null,
       });
     }
     return new Response("bad method", { status: 400 });
+  });
+}
+
+function makeSubscriber(
+  state: RouteState,
+  overrides: Partial<SubscriberConfig> = {},
+): PrivateTransferSubscriber {
+  return new PrivateTransferSubscriber({
+    rpcUrl: "http://rpc.test",
+    queuePda: QUEUE,
+    mint: MINT,
+    receiverWallet: RECEIVER,
+    pollIntervalMs: 10,
+    fetch: makeFetch(state) as unknown as typeof fetch,
+    ...overrides,
   });
 }
 
@@ -62,17 +135,10 @@ describe("PrivateTransferSubscriber (polling)", () => {
         { signature: "oldest", slot: 0, err: null },
       ],
       txs: {
-        older: { logs: paymentLogs("111", RECEIVER, "9990") },
+        older: paymentTx({ clientRefId: "111", sender: OTHER, receiver: RECEIVER, amount: "9990" }),
       },
     };
-    const fetchMock = makeFetch(state);
-    const sub = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10_000, // no polls during test
-      fetch: fetchMock as unknown as typeof fetch,
-    });
+    const sub = makeSubscriber(state, { pollIntervalMs: 10_000 });
     const emits: unknown[] = [];
     sub.on("tick", (e) => emits.push(e));
     await sub.start();
@@ -81,27 +147,24 @@ describe("PrivateTransferSubscriber (polling)", () => {
     expect(sub.lookupByClientRefId("111")).toBeUndefined();
   });
 
-  it("emits and indexes a new tick whose receiver matches", async () => {
+  it("emits and indexes a new tick whose receiver and mint match", async () => {
     const state: RouteState = {
       sigs: [{ signature: "seed1", slot: 1, err: null }],
       txs: {},
     };
-    const fetchMock = makeFetch(state);
-    const sub = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10,
-      fetch: fetchMock as unknown as typeof fetch,
-    });
+    const sub = makeSubscriber(state);
     await sub.start();
 
-    // New tx appears on next poll.
     state.sigs = [
       { signature: "new1", slot: 2, err: null },
       { signature: "seed1", slot: 1, err: null },
     ];
-    state.txs.new1 = { logs: paymentLogs("777", RECEIVER, "9990") };
+    state.txs.new1 = paymentTx({
+      clientRefId: "777",
+      sender: "SENDER777Pubkey",
+      receiver: RECEIVER,
+      amount: "9990",
+    });
 
     const waitTick = new Promise<void>((resolve) => sub.once("tick", () => resolve()));
     await waitTick;
@@ -110,7 +173,7 @@ describe("PrivateTransferSubscriber (polling)", () => {
     const hit = sub.lookupByClientRefId("777");
     expect(hit).toEqual({
       signature: "new1",
-      sender: "SENDER777",
+      sender: "SENDER777Pubkey",
       receiver: RECEIVER,
       amount: "9990",
       clientRefId: "777",
@@ -118,22 +181,17 @@ describe("PrivateTransferSubscriber (polling)", () => {
   });
 
   it("ignores ticks with a different receiver", async () => {
-    const state: RouteState = {
-      sigs: [],
-      txs: {},
-    };
-    const fetchMock = makeFetch(state);
-    const sub = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10,
-      fetch: fetchMock as unknown as typeof fetch,
-    });
+    const state: RouteState = { sigs: [], txs: {} };
+    const sub = makeSubscriber(state);
     await sub.start();
 
     state.sigs = [{ signature: "nope", slot: 2, err: null }];
-    state.txs.nope = { logs: paymentLogs("888", OTHER, "10000") };
+    state.txs.nope = paymentTx({
+      clientRefId: "888",
+      sender: "Sx",
+      receiver: OTHER,
+      amount: "10000",
+    });
 
     await new Promise((r) => setTimeout(r, 40));
     await sub.stop();
@@ -141,15 +199,75 @@ describe("PrivateTransferSubscriber (polling)", () => {
     expect(sub.lookupByClientRefId("888")).toBeUndefined();
   });
 
-  it("markSignatureUsed returns false on replay", async () => {
-    const fetchMock = makeFetch({ sigs: [], txs: {} });
-    const sub = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10_000,
-      fetch: fetchMock as unknown as typeof fetch,
+  it("ignores ticks on a different mint even when receiver matches", async () => {
+    const state: RouteState = { sigs: [], txs: {} };
+    const sub = makeSubscriber(state);
+    await sub.start();
+
+    state.sigs = [{ signature: "wrongmint", slot: 2, err: null }];
+    state.txs.wrongmint = paymentTx({
+      clientRefId: "555",
+      sender: "Sx",
+      receiver: RECEIVER,
+      amount: "10000",
+      mint: OTHER_MINT,
     });
+
+    await new Promise((r) => setTimeout(r, 40));
+    await sub.stop();
+
+    expect(sub.lookupByClientRefId("555")).toBeUndefined();
+  });
+
+  it("ignores txs without an ExecuteReadyQueuedTransfer log line", async () => {
+    const state: RouteState = { sigs: [], txs: {} };
+    const sub = makeSubscriber(state);
+    await sub.start();
+
+    state.sigs = [{ signature: "irrelevant", slot: 2, err: null }];
+    state.txs.irrelevant = paymentTx({
+      clientRefId: "666",
+      sender: "Sx",
+      receiver: RECEIVER,
+      amount: "10000",
+      withoutExecuteLine: true,
+    });
+
+    await new Promise((r) => setTimeout(r, 40));
+    await sub.stop();
+
+    expect(sub.lookupByClientRefId("666")).toBeUndefined();
+  });
+
+  it("warns and skips ExecuteReadyQueuedTransfer with no client_ref_id", async () => {
+    const warnings: string[] = [];
+    const state: RouteState = { sigs: [], txs: {} };
+    const sub = makeSubscriber(state, {
+      logger: {
+        info: () => {},
+        warn: (m: string) => warnings.push(m),
+        error: () => {},
+      },
+    });
+    await sub.start();
+
+    state.sigs = [{ signature: "no_ref", slot: 2, err: null }];
+    state.txs.no_ref = paymentTx({
+      clientRefId: "unused",
+      sender: "Sx",
+      receiver: RECEIVER,
+      amount: "10000",
+      withoutRefId: true,
+    });
+
+    await new Promise((r) => setTimeout(r, 40));
+    await sub.stop();
+
+    expect(warnings.some((w) => w.includes("no client_ref_id"))).toBe(true);
+  });
+
+  it("markSignatureUsed returns false on replay", async () => {
+    const sub = makeSubscriber({ sigs: [], txs: {} }, { pollIntervalMs: 10_000 });
     await sub.start();
     await sub.stop();
     expect(sub.markSignatureUsed("sig-r")).toBe(true);
@@ -161,28 +279,25 @@ describe("PrivateTransferSubscriber (polling)", () => {
       sigs: [{ signature: "seed", slot: 1, err: null }],
       txs: {},
     };
-    const fetchMock = makeFetch(state);
     const advances: string[] = [];
-    const sub = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10,
-      fetch: fetchMock as unknown as typeof fetch,
-      onWatermarkAdvance: (sig) => {
+    const sub = makeSubscriber(state, {
+      onWatermarkAdvance: (sig: string) => {
         advances.push(sig);
       },
     });
     await sub.start();
     expect(sub.getWatermark()).toBe("seed");
-    // Start doesn't fire the callback — only polls do.
     expect(advances).toEqual([]);
 
     state.sigs = [{ signature: "newer", slot: 2, err: null }, ...state.sigs];
-    state.txs.newer = { logs: paymentLogs("321", RECEIVER, "9990") };
+    state.txs.newer = paymentTx({
+      clientRefId: "321",
+      sender: "Sx",
+      receiver: RECEIVER,
+      amount: "9990",
+    });
 
     await new Promise<void>((resolve) => sub.once("tick", () => resolve()));
-    // Give the post-poll callback a tick to run.
     await new Promise((r) => setTimeout(r, 20));
     await sub.stop();
 
@@ -195,14 +310,8 @@ describe("PrivateTransferSubscriber (polling)", () => {
       sigs: [{ signature: "seed", slot: 1, err: null }],
       txs: {},
     };
-    const fetchMock = makeFetch(state);
     const errors: Error[] = [];
-    const sub = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10,
-      fetch: fetchMock as unknown as typeof fetch,
+    const sub = makeSubscriber(state, {
       onWatermarkAdvance: () => {
         throw new Error("disk full");
       },
@@ -211,7 +320,12 @@ describe("PrivateTransferSubscriber (polling)", () => {
     await sub.start();
 
     state.sigs = [{ signature: "newer", slot: 2, err: null }, ...state.sigs];
-    state.txs.newer = { logs: paymentLogs("999", RECEIVER, "9990") };
+    state.txs.newer = paymentTx({
+      clientRefId: "999",
+      sender: "Sx",
+      receiver: RECEIVER,
+      amount: "9990",
+    });
     await new Promise<void>((resolve) => sub.once("tick", () => resolve()));
     await new Promise((r) => setTimeout(r, 20));
     await sub.stop();
@@ -222,46 +336,34 @@ describe("PrivateTransferSubscriber (polling)", () => {
   });
 
   it("restart with initialWatermark backfills sigs landed during the crash window", async () => {
-    // Phase 1: a subscriber sees `seed1` only, persists watermark to `persisted`.
     const state: RouteState = {
       sigs: [{ signature: "seed1", slot: 1, err: null }],
       txs: {},
     };
-    const fetchMock = makeFetch(state);
     let persisted: string | null = null;
-    const sub1 = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10,
-      fetch: fetchMock as unknown as typeof fetch,
-      onWatermarkAdvance: (sig) => {
+    const sub1 = makeSubscriber(state, {
+      onWatermarkAdvance: (sig: string) => {
         persisted = sig;
       },
     });
     await sub1.start();
     expect(sub1.getWatermark()).toBe("seed1");
     await sub1.stop();
-    // No real payments landed yet — persisted may still be null because watermark didn't advance past start.
     persisted ??= "seed1";
 
-    // Phase 2: while server was "down", a real payment landed (sig=crash_window).
     state.sigs = [
       { signature: "crash_window", slot: 2, err: null },
       { signature: "seed1", slot: 1, err: null },
     ];
-    state.txs.crash_window = { logs: paymentLogs("42", RECEIVER, "9990") };
-
-    // Phase 3: new subscriber boots with persisted watermark instead of current tip.
-    const ticks: TickEvent[] = [];
-    const sub2 = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10,
-      initialWatermark: persisted,
-      fetch: fetchMock as unknown as typeof fetch,
+    state.txs.crash_window = paymentTx({
+      clientRefId: "42",
+      sender: "Sx",
+      receiver: RECEIVER,
+      amount: "9990",
     });
+
+    const ticks: TickEvent[] = [];
+    const sub2 = makeSubscriber(state, { initialWatermark: persisted });
     sub2.on("tick", (e) => ticks.push(e));
     await sub2.start();
     await new Promise<void>((resolve) => sub2.once("tick", () => resolve()));
@@ -272,7 +374,6 @@ describe("PrivateTransferSubscriber (polling)", () => {
   });
 
   it("emits stalled after 30s of consecutive RPC 5xx failures", async () => {
-    // Use a fake clock to advance past STALLED_THRESHOLD_MS without waiting in real time.
     vi.useFakeTimers();
     try {
       const failingFetch = vi.fn(
@@ -281,6 +382,7 @@ describe("PrivateTransferSubscriber (polling)", () => {
       const sub = new PrivateTransferSubscriber({
         rpcUrl: "http://rpc.test",
         queuePda: QUEUE,
+        mint: MINT,
         receiverWallet: RECEIVER,
         pollIntervalMs: 100,
         initialWatermark: "seed",
@@ -290,7 +392,6 @@ describe("PrivateTransferSubscriber (polling)", () => {
       sub.on("stalled", (e) => stalls.push(e));
       await sub.start();
 
-      // Run poll loop forward past the 30s threshold via fake timers.
       for (let i = 0; i < 350; i++) {
         await vi.advanceTimersByTimeAsync(100);
       }
@@ -304,7 +405,6 @@ describe("PrivateTransferSubscriber (polling)", () => {
   });
 
   it("stop() awaits in-flight poll and aborts pending fetch", async () => {
-    // Fetch that takes a long time unless aborted, simulating a slow RPC.
     let aborted = false;
     let fetchStarted = false;
     const slowFetch = vi.fn((_input: string | URL, init?: RequestInit) => {
@@ -325,9 +425,9 @@ describe("PrivateTransferSubscriber (polling)", () => {
     const sub = new PrivateTransferSubscriber({
       rpcUrl: "http://rpc.test",
       queuePda: QUEUE,
+      mint: MINT,
       receiverWallet: RECEIVER,
       pollIntervalMs: 5,
-      // Pre-seed so start() doesn't make an RPC call and we can wait for the poll fetch.
       initialWatermark: "seed",
       fetch: slowFetch as unknown as typeof fetch,
     });
@@ -336,7 +436,6 @@ describe("PrivateTransferSubscriber (polling)", () => {
     sub.on("error", (e) => errors.push(e));
     sub.on("stalled", (e) => stalls.push(e));
     await sub.start();
-    // Wait until the first poll's fetch is actually in flight.
     while (!fetchStarted) await new Promise((r) => setTimeout(r, 5));
 
     const t0 = Date.now();
@@ -344,29 +443,23 @@ describe("PrivateTransferSubscriber (polling)", () => {
     const elapsed = Date.now() - t0;
 
     expect(aborted).toBe(true);
-    expect(elapsed).toBeLessThan(500); // didn't wait the 30s slow-fetch timeout
-    expect(errors).toHaveLength(0); // abort error is swallowed
+    expect(elapsed).toBeLessThan(500);
+    expect(errors).toHaveLength(0);
     expect(stalls).toHaveLength(0);
   });
 
   it("expires tick entries after ttlMs", async () => {
-    const state: RouteState = {
-      sigs: [],
-      txs: {},
-    };
-    const fetchMock = makeFetch(state);
-    const sub = new PrivateTransferSubscriber({
-      rpcUrl: "http://rpc.test",
-      queuePda: QUEUE,
-      receiverWallet: RECEIVER,
-      pollIntervalMs: 10,
-      ttlMs: 50,
-      fetch: fetchMock as unknown as typeof fetch,
-    });
+    const state: RouteState = { sigs: [], txs: {} };
+    const sub = makeSubscriber(state, { ttlMs: 50 });
     await sub.start();
 
     state.sigs = [{ signature: "sigTtl", slot: 2, err: null }];
-    state.txs.sigTtl = { logs: paymentLogs("999", RECEIVER, "9990") };
+    state.txs.sigTtl = paymentTx({
+      clientRefId: "999",
+      sender: "Sx",
+      receiver: RECEIVER,
+      amount: "9990",
+    });
 
     const waitTick = new Promise<void>((resolve) => sub.once("tick", () => resolve()));
     await waitTick;
