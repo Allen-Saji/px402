@@ -62,7 +62,8 @@ describe.skipIf(!ENABLED)("08 amount mismatch", () => {
     console.log(`[08] paid ${halfAmount} (quoted ${quotedAmount}), sig=${sig}`);
 
     // Step 3: poll the server until it observes the (incorrect) payment.
-    const deadline = Date.now() + 60_000;
+    // Devnet crank cadence is ~3-5min after the 2026-05-13 protocol change.
+    const deadline = Date.now() + 540_000;
     let outcome: { status: number; body: unknown } | null = null;
     while (Date.now() < deadline) {
       const res = await fetch(`${server.url}/api/sentiment?token=SOL&am=1`, {
@@ -80,5 +81,5 @@ describe.skipIf(!ENABLED)("08 amount mismatch", () => {
     expect(outcome, "expected a non-pending response").not.toBeNull();
     expect(outcome!.status).toBe(402);
     expect(outcome!.body).toMatchObject({ error: "amount_mismatch" });
-  }, 120_000);
+  }, 600_000);
 });

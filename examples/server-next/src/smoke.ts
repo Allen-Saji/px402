@@ -84,6 +84,9 @@ async function main() {
       baseRpcUrl: "https://api.devnet.solana.com",
       ephemeralRpcUrl: "https://devnet.magicblock.app",
       cluster: "devnet",
+      // Devnet crank cadence is ~3-5min after the 2026-05-13 protocol
+      // change. Default ~30s is mainnet-shaped; smokes need a longer budget.
+      retryDelaysMs: [3000, 6000, 12000, 30000, 60000, 120000, 300000],
     });
 
     const t0 = Date.now();

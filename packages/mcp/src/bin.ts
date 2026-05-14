@@ -4,12 +4,13 @@
  * config or a local `tsx` dev run.
  *
  * Env vars:
- *   PX402_KEYPAIR_PATH    absolute path to a Solana keypair .json file
- *   PX402_MINT            SPL mint accepted for payments
- *   PX402_API_URL         optional REST base
- *   PX402_BASE_RPC_URL    optional
+ *   PX402_KEYPAIR_PATH       absolute path to a Solana keypair .json file
+ *   PX402_MINT               SPL mint accepted for payments
+ *   PX402_API_URL            optional REST base
+ *   PX402_BASE_RPC_URL       optional
  *   PX402_EPHEMERAL_RPC_URL  optional
- *   PX402_CLUSTER         "devnet" or "mainnet"
+ *   PX402_CLUSTER            "devnet" or "mainnet"
+ *   PX402_RETRY_DELAYS_MS    optional comma-separated delays (e.g. "3000,6000,12000")
  */
 import { readFileSync } from "node:fs";
 import { Keypair } from "@solana/web3.js";
@@ -28,6 +29,14 @@ async function main() {
   const secret = Uint8Array.from(JSON.parse(readFileSync(keypairPath, "utf8")) as number[]);
   const wallet = Keypair.fromSecretKey(secret);
 
+  const retryDelaysRaw = process.env.PX402_RETRY_DELAYS_MS;
+  const retryDelaysMs = retryDelaysRaw
+    ? retryDelaysRaw
+        .split(",")
+        .map((s) => Number.parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    : undefined;
+
   const server = createPx402McpServer({
     wallet,
     mint,
@@ -37,6 +46,7 @@ async function main() {
       ? { ephemeralRpcUrl: process.env.PX402_EPHEMERAL_RPC_URL }
       : {}),
     ...(process.env.PX402_CLUSTER ? { cluster: process.env.PX402_CLUSTER } : {}),
+    ...(retryDelaysMs && retryDelaysMs.length > 0 ? { retryDelaysMs } : {}),
   });
 
   await runStdio(server);

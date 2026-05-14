@@ -87,6 +87,8 @@ export interface Px402McpConfig {
   ephemeralRpcUrl?: string;
   /** Cluster. Default: "devnet" */
   cluster?: string;
+  /** Override the 402-retry schedule. Default tuned for mainnet (~30s total). */
+  retryDelaysMs?: number[];
 }
 
 /**
@@ -106,6 +108,7 @@ export function createPx402McpServer(cfg: Px402McpConfig): McpServer {
     ...(cfg.baseRpcUrl ? { baseRpcUrl: cfg.baseRpcUrl } : {}),
     ...(cfg.ephemeralRpcUrl ? { ephemeralRpcUrl: cfg.ephemeralRpcUrl } : {}),
     ...(cfg.cluster ? { cluster: cfg.cluster } : {}),
+    ...(cfg.retryDelaysMs ? { retryDelaysMs: cfg.retryDelaysMs } : {}),
   });
 
   const server = new McpServer({

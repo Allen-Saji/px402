@@ -107,6 +107,8 @@ async function main() {
         PX402_BASE_RPC_URL: "https://api.devnet.solana.com",
         PX402_EPHEMERAL_RPC_URL: "https://devnet.magicblock.app",
         PX402_CLUSTER: "devnet",
+        // Devnet crank cadence is ~3-5min after the 2026-05-13 protocol change.
+        PX402_RETRY_DELAYS_MS: "3000,6000,12000,30000,60000,120000,300000",
       } as Record<string, string>,
     });
 
@@ -127,10 +129,17 @@ async function main() {
     if (!bal.amount) throw new Error(`balance missing amount: ${balText}`);
 
     log("calling px402_fetch -> /api/sentiment");
-    const fetchRes = await mcpClient.callTool({
-      name: "px402_fetch",
-      arguments: { url: `http://127.0.0.1:${port}/api/sentiment?token=SOL` },
-    });
+    // Devnet crank cadence is ~3-5min; default MCP-SDK timeout is 60s.
+    // The inner Px402Client retries up to ~531s, so the SDK side needs
+    // strictly more headroom than that for the final retry to land.
+    const fetchRes = await mcpClient.callTool(
+      {
+        name: "px402_fetch",
+        arguments: { url: `http://127.0.0.1:${port}/api/sentiment?token=SOL` },
+      },
+      undefined,
+      { timeout: 1_200_000 },
+    );
     const fetchText = (fetchRes.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
     log(`fetch: ${fetchText}`);
     const parsed = JSON.parse(fetchText) as { status: number; body: unknown };

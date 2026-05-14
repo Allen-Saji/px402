@@ -62,7 +62,8 @@ describe.skipIf(!ENABLED)("10 replay attack", () => {
     });
 
     // Step 2: poll until server verifies (200).
-    const deadline = Date.now() + 60_000;
+    // Devnet crank cadence is ~3-5min after the 2026-05-13 protocol change.
+    const deadline = Date.now() + 540_000;
     let firstSuccess = false;
     while (Date.now() < deadline) {
       const res = await fetch(`${server.url}/api/sentiment?token=SOL&rp=2`, {
@@ -84,5 +85,5 @@ describe.skipIf(!ENABLED)("10 replay attack", () => {
     console.log(`[10] replay status=${replayRes.status} body=${JSON.stringify(body)}`);
     expect(replayRes.status).toBe(409);
     expect(body).toMatchObject({ error: "replay" });
-  }, 180_000);
+  }, 900_000);
 });

@@ -27,7 +27,10 @@ describe.skipIf(!ENABLED)("01 single payment", () => {
     expect(result.status, `error: ${result.error}\nserver log:\n${server.getLog().slice(-2000)}`).toBe(200);
     expect(result.signature).toBeTruthy();
     expect(result.paymentId).toBeTruthy();
-    expect(result.latencyMs).toBeLessThan(60_000);
+    // Latency budget tracks current devnet crank cadence (~3-5min after the
+    // 2026-05-13 protocol change). Mainnet target is sub-second. See
+    // KNOWN_LIMITATIONS.md.
+    expect(result.latencyMs).toBeLessThan(600_000);
     expect(result.body).toMatchObject({ token: "SOL" });
-  }, 90_000);
+  }, 660_000);
 });
