@@ -56,6 +56,6 @@
     "next": ">=14.0.0"
   },
   "devDependencies": {
-    "next": "^16.2.5"
+    "next": "^16.2.6"
   }
 }

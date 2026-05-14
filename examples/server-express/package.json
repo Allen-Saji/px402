@@ -17,7 +17,7 @@
     "@px402/core": "workspace:*",
     "@px402/express": "workspace:*",
     "@solana/web3.js": "^1.95.8",
-    "express": "^4.21.2"
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
