@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an addition or change to px402
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Please open an issue **before** writing a PR for non-trivial changes so we can agree on shape.
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What are you trying to do? What's blocking you today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed approach
+      description: Sketch of the API or behavior change. Code examples welcome.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What else did you think about? Why doesn't it work?

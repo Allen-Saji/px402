@@ -9,6 +9,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- **License: MIT → Apache-2.0** across all packages and the repo root.
+  Apache adds an explicit patent grant (§ 3) which is the increasingly
+  standard choice for protocol code. No code change required for
+  consumers; the package files still ship the same source.
 - **`@px402/core`**: `PrivateTransferSubscriber` rewritten for MagicBlock's
   new private-transfer flow. Between 2026-05-08 and 2026-05-13 the crank
   moved actual transfer execution from the ER queue tick to a base-chain
@@ -31,6 +35,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - `SubscriberStatus.orphanCount`, `.queuedCount`, and
   `.recentBackwardsScans` removed — those state machines are obsolete in
   the new model.
+
+### Added
+
+- `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and
+  `SECURITY.md` at the repo root for OSS readiness.
+- `.github/` community files: issue templates (bug, feature),
+  pull-request template, and Dependabot config (weekly npm + monthly
+  GitHub Actions).
 
 ### Validation
 

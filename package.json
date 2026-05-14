@@ -5,7 +5,7 @@
   "description": "Private x402 payments for agent APIs on Solana via MagicBlock PER",
   "repository": "github:Allen-Saji/px402",
   "author": "Allen Saji <allensaji04@gmail.com>",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22"

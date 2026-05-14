@@ -1,0 +1,65 @@
+name: Bug report
+description: Something is broken in px402
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please fill in everything you can — the easier we can reproduce, the faster we can fix.
+        **Security issues:** do NOT use this template. See [SECURITY.md](https://github.com/Allen-Saji/px402/blob/main/SECURITY.md).
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Affected package
+      options:
+        - "@px402/core"
+        - "@px402/client"
+        - "@px402/hono"
+        - "@px402/express"
+        - "@px402/next"
+        - "@px402/mcp"
+        - "Other / not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "0.1.0-rc.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, what did you see?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal repro — link to a repo or paste a snippet. Bug reports without a repro are usually closed.
+      render: typescript
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        - Node version:
+        - OS:
+        - Network: devnet | mainnet
+        - MagicBlock RPC: default | custom
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: shell
