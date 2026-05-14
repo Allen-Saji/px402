@@ -33,12 +33,12 @@ pnpm --filter px402-integration-tests fund -- --refund --count 30
 
 | # | File | What it asserts |
 |---|---|---|
-| 01 | `01-single-payment.test.ts` | Smoke: one payment → 200 within 60s |
+| 01 | `01-single-payment.test.ts` | Smoke: one payment → 200 within ~10 min (devnet crank-bound; see [KNOWN_LIMITATIONS.md](../../KNOWN_LIMITATIONS.md)) |
 | 02 | `02-sequential-payments.test.ts` | 5 sequential calls, all succeed, no state pollution |
-| 03 | `03-concurrent-same-wallet.test.ts` | 5 parallel from one wallet — exercises same-batch insert+pop ordering |
+| 03 | `03-concurrent-same-wallet.test.ts` | 5 parallel from one wallet — exercises same-batch settlement ordering |
 | 04 | `04-concurrent-distinct-wallets.test.ts` | 10 parallel from 10 wallets — original race condition at scale |
 | 05 | `05-burst-stress.test.ts` | 30 payments staggered over 5s; ≥28 succeed; reports p50/p90/p99 |
-| 06 | `06-subscriber-lag.test.ts` | Pay BEFORE subscriber starts; orphan-pop backwards-recovery resolves |
+| 06 | `06-subscriber-lag.test.ts` | Pay BEFORE subscriber starts; watermark backfill recovers the missed tick. Architecturally obsolete in the single-tx model — kept until deletion lands. |
 | 07 | `07-token-expiry.test.ts` | Token TTL of 5s expires mid-retry; client gets fresh 402; pays again; succeeds |
 | 08 | `08-amount-mismatch.test.ts` | Agent pays half the quoted amount; server returns 402 amount_mismatch |
 | 09 | `09-tampered-token.test.ts` | Flipped HMAC payload byte → 401 invalid_token |
@@ -48,7 +48,7 @@ pnpm --filter px402-integration-tests fund -- --refund --count 30
 
 - Per-test stdout shows `[##] status=200 latency=Xms retries=N`
 - On failure, last 2-5K of server stdout is dumped for forensics
-- Successful 30-payment burst typically: p50 ≈ 6-10s, p90 ≈ 15-25s, all retries ≤4
+- Per-payment latency post-2026-05-13 is bounded by MagicBlock's devnet crank cadence (~4 min). Old pre-protocol-change burst numbers (p50 ≈ 6-10s) no longer apply; the suite times reflect the new cadence.
 
 ## Known limitations
 

@@ -1,94 +1,94 @@
 ---
-tags: [project, solana, magicblock, x402, hackathon, protocol]
+tags: [project, solana, magicblock, x402, protocol]
 created: 2026-04-21
-modified: 2026-04-21
-status: ready-to-build
-hackathon: colosseum-frontier-magicblock-privacy-track
-deadline: 2026-05-12
+modified: 2026-05-14
+status: live
 ---
 
 # px402: Private x402 Protocol for Agent Payments
 
-Source of truth for implementation. Supersedes the original 2026-04-13 draft.
-Architecture locked via engineering review on 2026-04-21.
-Empirical tests against MagicBlock devnet validate the critical paths.
+Live protocol design doc. Architecture locked 2026-04-21, amended 2026-05-13 after MagicBlock's crank protocol changed (see [2026-05-13 amendment](#2026-05-13--protocol-change-amendment) at bottom).
+
+For the user-facing protocol surface — headers, payment body, retry semantics — see [README.md](./README.md), kept fresh as the published reference. This doc covers the *why* behind the decisions.
 
 ## Snapshot
 
-- **Problem:** x402 payments on Solana are public. Every agent API call leaks consumption pattern and strategy.
-- **Solution:** Swap the payment layer from mainnet to MagicBlock Private Ephemeral Rollups. Same 402 flow, invisible settlement.
-- **Verification:** Memo on PER transfer, indexed via `getSignaturesForAddress` and `logsSubscribe`. Stateless server.
-- **Adoption story:** Core + Hono + Express + Next.js App Router adapters, published as `@px402/*` on npm.
-- **Target:** Colosseum Frontier + MagicBlock Privacy Track. Deadline May 12, 2026.
+- **Problem:** x402 payments on public Solana leak the agent's consumption pattern.
+- **Solution:** Route payments through MagicBlock's private rails (TEE shuttle + base-chain settlement). Same 402 flow; the agent→recipient link is broken.
+- **Verification:** Subscriber polls base RPC for `ExecuteReadyQueuedTransfer` instructions on the queue PDA; matches `client_ref_id` from the program log; sender / receiver / amount from `meta.pre/postTokenBalances` deltas filtered by mint.
+- **Adoption:** `@px402/{core,hono,express,next,client,mcp}` on npm.
 
-## Problem Statement
+## Problem statement
 
-x402 is the emerging standard for agent-to-API payments on Solana. Agent hits endpoint, gets 402, pays USDC, gets content. 140M+ transactions processed, backed by Linux Foundation with Google, AWS, Visa, Stripe as members.
+x402 is the emerging standard for agent-to-API payments on Solana. Agent hits endpoint, gets 402, pays USDC, gets content. Backed by Linux Foundation with Google, AWS, Visa, Stripe as members; 140M+ transactions processed.
 
-Every x402 payment is a public Solana transaction. Anyone watching the blockchain can see:
+Every public x402 payment is a public Solana transaction. Anyone watching the blockchain can see:
 
 - Which APIs an agent consumes (competitive intelligence)
 - How much it pays per call (pricing intelligence)
 - How frequently it calls each service (usage pattern)
 - The agent's total API spend and budget allocation
 
-For trading agents, research agents, or any agent with a strategy, this is a leak. Your API consumption pattern IS your strategy. Public x402 is like running your playbook on a jumbotron.
+For trading agents, research agents, or any agent with a strategy, this is a leak. The API consumption pattern *is* the strategy. Public x402 is like running the playbook on a jumbotron.
 
-px402 swaps the payment layer from public Solana to MagicBlock Private Ephemeral Rollups (PER). Same 402 flow, same developer experience, invisible payments. A new protocol primitive, not a wrapper.
+px402 routes payments through MagicBlock's TEE shuttle so that the agent's deposit and the eventual settlement appear on chain as unlinkable transactions. Same 402 flow, same developer experience.
 
-## Why This Is Cool
+## What's public, what's hidden
 
-- **New protocol, not a product.** px402 extends x402 with a private payment layer. Anyone can adopt it.
-- **Same developer experience.** API providers add middleware. Agent developers use the client SDK. Privacy is invisible to both.
-- **Stateless server.** HMAC-signed payment tokens + memo verification. No Postgres required to adopt.
-- **Pattern hiding.** Agent hits 10 APIs per minute. Blockchain sees one deposit. That is the real value.
-- **Works across frameworks.** Adapters for Hono, Express, Next.js App Router ship day one.
+The privacy claim is precise — not "invisible on mainnet", but "unlinkable".
 
-## Constraints
+**Public on Solana (base chain):**
+- Sender wallet of the agent's deposit tx
+- Mint and amount on the deposit tx
+- Settlement tx: validator-signed `ExecuteReadyQueuedTransfer`, receiver ATA, mint, amount
 
-- Must use MagicBlock ER, PER, or Private Payments API
-- Must submit to Colosseum Frontier by May 11
-- Live deployment, public GitHub repo, 3-min demo video
-- Solo builder, ~3 weeks remaining
-- x402 integration (track explicitly lists this)
+**Hidden:**
+- Which deposit corresponds to which settlement — the TEE controls that mapping; it is not derivable from on-chain state alone
+- Therefore: an outside observer cannot tell *which API* the agent is paying, even though every constituent fact is public
 
-## Architecture Decisions (locked via engg review 2026-04-21)
+Agent strategy stays hidden because the *link* — not the events — is what carries the strategic signal.
+
+## Architecture decisions
 
 | # | Decision | Why | Alternative considered |
 |---|----------|-----|------------------------|
-| 1 | **Memo-based verification** via getSignaturesForAddress / logsSubscribe | MagicBlock ER is Solana-RPC compatible and returns memo field in signature entries. O(1) payment identification, fully parallel. | FIFO slot + balance-delta (broken under out-of-order arrival), unique PDA per payment (2x on-chain setup cost) |
-| 2 | **Stateless server** with HMAC-signed payment tokens | No pending_payments DB. Server issues token encoding {payment_id, amount, expiry, path, hmac}; client returns token; server re-verifies HMAC + memo. Adopters do not need Postgres. | In-memory pending set, Postgres-backed |
-| 3 | **IP + per-wallet rate limiting** in core middleware | Unauthenticated payment_id issuance is a DoS vector even with HMAC. IP limit always on, wallet limit active after first successful payment. | Proof-of-wallet on issuance (hurts DX), WAF only (adopter liability) |
-| 4 | **Core + Hono + Express + Next.js adapters** | 5 deliverables already committed; adapter breadth is the adoption story. Coinbase x402 middleware ships multiple adapters for same reason. | Hono-only, bundled server package |
-| 5 | **Deposit via SDK + CLI + MCP tool** | Three user types, three surfaces. All three wrap same core deposit flow. | MCP-only (non-MCP agents blocked), auto-deposit (magic, risks runaway spend) |
-| 6 | **Monorepo: packages per concern + apps dir** | Matches Coinbase x402 layout. Each package publishes independently. | Bundled server, single package with subpath exports |
-| 7 | **Npm scope `@px402`** | Clean namespacing, free for public packages. | `px402-` unscoped prefix |
-| 8 | **HMAC secret: env var + auto-gen dev + rotation buffer** | Two keys live during rotation window so in-flight payments do not drop. Matches Rails/Django/Laravel session secret pattern. | Env-only hard-fail, derived from wallet keypair |
-| 9 | **Verification via logsSubscribe WebSocket at server boot** | Persistent WS connection, real-time push, O(1) in-memory lookup. Gives <50ms verification for demo narrative. | Poll getSignaturesForAddress per retry |
-| 10 | **Client retry: 500ms, 1s, 2s, fresh payment_id** | Empirical measurement: chain confirmation under 400ms. First retry at 500ms succeeds in ~95% of cases. | Plan's original 2s backoff (safe but slow) |
+| 1 | **`clientRefId`-based verification via base-chain polling.** Subscriber polls `getSignaturesForAddress` on the base RPC, filters `ExecuteReadyQueuedTransfer` from the SPL-PP CPI, reads `client_ref_id` from the program log, reads sender / receiver / amount from `meta.preTokenBalances` / `meta.postTokenBalances` deltas. | The 2026-05-13 protocol change collapsed the old insert+pop two-tx model into a single base-chain settlement tx that carries the full payload. O(1) lookup, no log-truncation workaround needed. | Memo on PER transfer (original design — became infeasible when the crank moved off ER); FIFO slot + balance-delta (broken under out-of-order arrival); unique PDA per payment (2x setup cost) |
+| 2 | **Stateless server with HMAC-signed payment tokens.** Server issues token encoding `{paymentId, amount, expiry, path, destination, hmac}`; client returns token; server re-verifies HMAC + subscriber lookup. | Adopters do not need Postgres. | In-memory pending set, Postgres-backed |
+| 3 | **IP + per-wallet rate limiting in core middleware.** | Unauthenticated payment-id issuance is a DoS vector even with HMAC. IP limit always on; wallet limit active after first successful payment. | Proof-of-wallet on issuance (hurts DX), WAF only (adopter liability) |
+| 4 | **Core + Hono + Express + Next.js App Router adapters.** | Adapter breadth is the adoption story. Coinbase x402 middleware ships multiple adapters for the same reason. | Hono-only, bundled server package |
+| 5 | **Deposit via SDK + CLI + MCP tool.** | Three user types, three surfaces. All three wrap the same core flow. | MCP-only (non-MCP agents blocked), auto-deposit (magic, risks runaway spend) |
+| 6 | **Monorepo: packages per concern + apps dir.** | Matches Coinbase x402 layout. Each package publishes independently. | Bundled server, single package with subpath exports |
+| 7 | **Npm scope `@px402`.** | Clean namespacing, free for public packages. | Unscoped `px402-` prefix |
+| 8 | **HMAC secret: env var + auto-gen dev + two-key rotation buffer.** | Two keys live during the rotation window so in-flight payments do not drop. Matches Rails / Django / Laravel session-secret pattern. | Env-only hard-fail, derived from wallet keypair |
+| 9 | **Subscriber polls instead of subscribing.** `getSignaturesForAddress` on base RPC with an `until` watermark; parallel `getTransaction` fetches; three-phase apply (fetch → parse → sorted apply by `slot, txOrder`). Crash-safe via `onWatermarkAdvance` callback. | Tried `logsSubscribe` on MagicBlock ER first — subscriptions accepted but no notifications delivered. Polling is the only path that ships. | Persistent WebSocket subscriber (original design — never worked against MagicBlock ER); polling per HTTP retry (couples verification latency to client retry cadence) |
+| 10 | **Configurable retry budget.** `Px402Client` default targets mainnet sub-second cadence; devnet adopters override via `retryDelaysMs`. | Devnet crank cadence is bounded by MagicBlock's validator schedule (~4 min as of 2026-05-13); mainnet target is sub-second. One default cannot serve both surfaces. | Single fixed schedule (would either fail on devnet or oversleep on mainnet) |
 
-## Empirical Findings (devnet measurements 2026-04-21)
+## Empirical findings
+
+### Live measurements (post-2026-05-13 protocol change)
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Memo field on `POST /v1/spl/transfer` | supported | API docs + decoded unsigned tx |
-| Ephemeral RPC compatibility | full Solana-core 2.2.1, magicblock-core 0.8.8 | `getVersion` |
-| `getSignaturesForAddress` returns memo field | yes (Solana standard) | live RPC probe |
-| ER block time | ~50ms/slot, 20 slots/sec | 6 samples across 10s |
-| logsSubscribe inter-arrival p90 | 49ms | 10s trace, 971 events |
-| logsSubscribe connect + subscribe ack | 543ms (one-time at boot) | WebSocket timing |
-| Observed ER throughput | 97 txs/sec | trace |
-| Memo tx size overhead | +61 bytes (+24.9%) | decoded actual API response |
-| Memo instruction overhead | +1 ix (Memo Program), +1 account | same |
-| Memo CU overhead | ~500 CUs (~10%) | SPL-memo program baseline |
-| Memo fee impact | negligible inside PER (fees abstracted) | math + MagicBlock fee model |
-| sendRawTransaction RTT (base chain) | ~300ms | 3 live samples |
-| Full base-chain tx confirm | ~1.8s | same |
-| ER sendRawTx estimate | ~200-300ms + ~100ms confirm = ~400ms | scaled by block time ratio |
-| signatureSubscribe on ER | supported, 101ms ACK | live test |
-| Commitment semantics on ER | **inverted** vs mainnet | `finalized` > `processed` in slot number |
+| Devnet crank cadence (agent deposit → `ExecuteReadyQueuedTransfer` on base) | ~4 min | 19 historical + 4 fresh ticks observed 2026-05-13 |
+| Mainnet crank cadence | sub-second target, **not yet verified** | docs.magicblock.gg |
+| Single-payment integration test (test 01) | bounded by crank cadence; current ceiling 600s | `01-single-payment.test.ts` |
+| Replay-attack test (test 10, 2 payments + 409 retry) | 334s | session 2026-05-13 |
+| Amount-mismatch test (test 08, 1 payment + verify) | 81s | session 2026-05-13 |
+| Server smoke (express / next / mcp) | 235-244s | session 2026-05-13 |
+| Subscriber poll cycle | 500ms with 16 parallel `getTransaction` fetches | `packages/core/src/subscribe.ts` |
 
-### Commitment gotcha (document prominently in repo)
+### Pre-protocol-change measurements (historical)
+
+| Metric | Value (pre-2026-05-13) |
+|--------|------------------------|
+| ER block time | ~50ms/slot, 20 slots/sec |
+| `logsSubscribe` inter-arrival p90 | 49ms — but subscriptions on MagicBlock ER accepted with no notifications delivered; the trace was from a parallel probe |
+| Observed ER throughput | 97 txs/sec |
+| Memo tx size overhead | +61 bytes (+24.9%) — memo no longer used as the identifier |
+| Full base-chain tx confirm | ~1.8s |
+| `signatureSubscribe` on ER | supported, 101ms ACK |
+
+### ER commitment gotcha (unchanged)
 
 On MagicBlock ER, at any given moment:
 
@@ -97,458 +97,192 @@ processed ≤ confirmed ≤ finalized  (in slot number)
 absoluteSlot > blockHeight > finalized
 ```
 
-This is opposite of mainnet Solana where `processed` is the newest. Likely because ER uses a single validator (no voting). For px402, always use `commitment: 'finalized'` on read queries. `'confirmed'` also works and tracks `'finalized'` tightly. Avoid `'processed'` entirely on ER.
+Opposite of mainnet Solana where `processed` is the newest. Likely because ER uses a single validator (no voting). The subscriber reads base RPC where ordering is normal. The inversion only matters for the parts of the client SDK that read ER (`privateBalance`, send-to-ephemeral confirms).
 
-## Protocol Specification
+## Protocol specification
 
-### Standard x402 flow (public, for comparison)
+The wire-level surface — headers, body, retry semantics — lives in [README.md](./README.md#protocol). This section covers the parts that do not fit in the README.
 
-```
-Agent -> GET /api/data
-Server -> 402 Payment Required
-          X-Payment-Amount: 0.05
-          X-Payment-Currency: USDC
-          X-Payment-Network: solana
-          X-Payment-Address: <server_solana_address>
-Agent -> signs USDC transfer tx on Solana (PUBLIC)
-Agent -> GET /api/data + X-Payment: <base64_signed_tx>
-Server -> verifies tx on-chain
-Server -> 200 OK + data
-```
-
-### px402 flow (private)
+### High-level flow
 
 ```
-Agent -> GET /api/data
-
-Server -> generates payment_id (ULID)
-          constructs token payload = {payment_id, amount, expiry, path}
-          signature = HMAC_SHA256(SERVER_SECRET, payload)
-          token = base64(payload || signature)
-
-Server -> 402 Payment Required
-          X-Payment-Amount: 0.05
-          X-Payment-Currency: USDC
-          X-Payment-Network: solana-per
-          X-Payment-Address: <server_per_ata>
-          X-Payment-ID: <ulid>
-          X-Payment-Token: <token>
-
-Agent -> POST /v1/spl/transfer to MagicBlock API
-         { from, to: server_per_ata, amount, memo: <ulid>, visibility: private }
-         -> unsigned tx
-Agent -> signs, sendRawTransaction to ephemeral RPC
-
-Agent -> GET /api/data
-         + X-Payment-ID: <ulid>
-         + X-Payment-Token: <token>
-
-Server -> verifies HMAC on token (catches tampering)
-Server -> checks memo-to-sig map (populated by logsSubscribe)
-          - if verified: confirm amount matches payload, check tx not in recent-used set
-          - else: return 402 (client retries)
-Server -> 200 OK + data
+1. Agent     → Server:          GET /api/data
+2. Server    → Agent:           402 + payment token
+                                (HMAC over {paymentId, amount, expiry, path, destination})
+3. Agent     → MagicBlock REST: POST /v1/spl/transfer
+                                (fromBalance=base, toBalance=base, clientRefId=u63)
+   Agent     → Base RPC:        sendRawTransaction
+   ─────────  (TEE shuttle: deposit enqueued in queue PDA;
+                later, validator cranks settlement on base)
+4. Validator → Base chain:      ExecuteReadyQueuedTransfer
+                                (logs `client_ref_id: <u64>`;
+                                 balance deltas carry sender / receiver / amount)
+5. Subscriber observes (4) on base RPC poll cycle; indexes by clientRefId
+6. Agent     → Server:          retry GET /api/data + X-Payment-Id + X-Payment-Token
+7. Server    → Subscriber:      lookupByClientRefId(paymentId)
+   Server    → Agent:           200 + data + X-Payment-Signature (settlement tx)
 ```
 
-### Key protocol differences from x402
+Steps 3 and 4 are asynchronous: the client retries step 6 while step 4 has not yet landed. The server responds `402 payment_pending` until the subscriber emits a tick matching the paymentId.
 
-- `X-Payment-Network: solana-per` signals PER support
-- `X-Payment-ID` is a ULID, `X-Payment-Token` is an HMAC-signed payload carrying all server state
-- Server runs no database. All "memory" rides on the signed token
-- Verification is a memo lookup against the ER logsSubscribe stream
-- Client retries with same payment_id until verified or expired (5-min TTL)
+### Architecture diagram
 
-### Headers summary
+The sequence diagram is rendered from `~/projects/diagram-kit/private/projects/Px402Animated.tsx` and shipped as [`./assets/architecture.png`](./assets/architecture.png). Re-render both when the protocol changes.
 
-| Header | On 402 | On retry | Purpose |
-|--------|--------|----------|---------|
-| X-Payment-Amount | ✓ | | amount in decimal USDC |
-| X-Payment-Currency | ✓ | | `USDC` for now, extensible |
-| X-Payment-Network | ✓ | | `solana-per` |
-| X-Payment-Address | ✓ | | server's PER ATA |
-| X-Payment-ID | ✓ | ✓ | ULID, matches memo on PER transfer |
-| X-Payment-Token | ✓ | ✓ | HMAC-signed payload |
+### Key differences from public x402
 
-## Architecture Diagram
+- `X-Payment-Network: solana-per` signals private settlement
+- `X-Payment-Id` is a decimal u63, echoed verbatim as `clientRefId` on the transfer
+- `X-Payment-Address` is the server's **wallet pubkey** (not its ATA — the REST API derives the ATA itself)
+- `X-Payment-Token` is an HMAC-signed payload carrying all server state — no database needed
+- Verification is a `clientRefId` lookup against an in-memory subscriber index, not an on-chain memo read
+- Client retries with the same paymentId until verified or until the token TTL elapses (5 min default)
 
-```
-+-----------------------------+     +-----------------------------+
-|  Agent (Client Side)        |     |  API Server (Provider Side) |
-|                             |     |                             |
-|  +----------------------+   |     |  +----------------------+   |
-|  | @px402/client        |   |     |  | @px402/hono          |   |
-|  |                      |   |     |  | (or express/next)    |   |
-|  | - Detects 402        |   |     |  |                      |   |
-|  | - Reads PER address  |   |     |  | - Issues 402 with    |   |
-|  |   + payment_id       |   |     |  |   HMAC token         |   |
-|  | - POST /spl/transfer |   |     |  | - On retry: verify   |   |
-|  |   with memo=<ulid>   |   |     |  |   HMAC + lookup      |   |
-|  | - Signs, submits to  |   |     |  |   memo -> tx         |   |
-|  |   ephemeral RPC      |   |     |  | - Rate limits        |   |
-|  | - Retries with token |   |     |  +----------+-----------+   |
-|  | - Returns API data   |   |     |             |               |
-|  +----------+-----------+   |     |             v               |
-|             |               |     |  +----------+-----------+   |
-+-------------|---------------+     |  | logsSubscribe WS     |   |
-              |                     |  | -> memo-to-sig map   |   |
-              v                     |  | (in-memory, 5min TTL)|   |
-    +---------+-----------------+   |  +----------------------+   |
-    |  MagicBlock PER (TEE)    <----+                             |
-    |                          |                                  |
-    |  Agent ATA --[memo]----> Server ATA                         |
-    |                                                             |
-    |  - Transfers invisible on mainnet                           |
-    |  - Memo is plaintext ULID (no PII, not linkable             |
-    |    without server's HMAC secret)                            |
-    +-------------------------------------------------------------+
-```
-
-## Package Layout (pnpm workspaces)
-
-Repo location: `~/px402/` (outside the Brain vault, next to other project repos).
+## Package layout
 
 ```
 ~/px402/
-├── package.json              # workspace root
-├── pnpm-workspace.yaml
-├── tsconfig.json
 ├── packages/
 │   ├── core/                 # @px402/core
 │   │   ├── src/
-│   │   │   ├── token.ts      # HMAC sign/verify, rotation buffer
-│   │   │   ├── verify.ts     # memo lookup, replay prevention
+│   │   │   ├── token.ts      # HMAC sign / verify, rotation buffer
+│   │   │   ├── verify.ts     # subscriber lookup, replay prevention
 │   │   │   ├── rate-limit.ts # IP + per-wallet buckets
-│   │   │   ├── subscribe.ts  # logsSubscribe + signatureSubscribe fallback
-│   │   │   ├── types.ts      # shared types (PaymentConfig, etc.)
-│   │   │   └── index.ts
-│   │   └── test/
+│   │   │   ├── subscribe.ts  # base-chain polling subscriber
+│   │   │   └── types.ts
 │   ├── hono/                 # @px402/hono
-│   │   └── src/middleware.ts
 │   ├── express/              # @px402/express
-│   │   └── src/middleware.ts
 │   ├── next/                 # @px402/next
-│   │   └── src/handler.ts    # App Router wrapper
 │   ├── client/               # @px402/client
-│   │   ├── src/fetch.ts      # fetch wrapper with 402 detection
-│   │   ├── src/deposit.ts
-│   │   ├── src/balance.ts
-│   │   ├── src/withdraw.ts
-│   │   └── src/index.ts
-│   ├── cli/                  # @px402/cli
-│   │   └── src/bin.ts        # `npx px402 deposit/balance/withdraw/history`
 │   └── mcp/                  # @px402/mcp
-│       └── src/server.ts     # MCP tools: fetch/balance/deposit/withdraw/history
 ├── apps/
-│   ├── demo-apis/            # 3 demo APIs behind @px402/hono
-│   │   └── src/
-│   │       ├── sentiment.ts
-│   │       ├── whales.ts
-│   │       └── risk.ts
-│   └── dashboard/            # Next.js creator/agent dashboard
+│   └── demo-apis/            # 3 priced routes under @px402/hono
 └── examples/
-    └── agent/                # Standalone demo agent calling all 3 APIs
+    ├── server-express/
+    ├── server-next/
+    ├── mcp-smoke/
+    └── agent/
 ```
 
-## Demo Setup
+## Test surface
 
-Three demo APIs behind @px402/hono:
+### Unit (core, ~70 cases)
 
-| API | Endpoint | Price | What it does |
-|-----|----------|-------|--------------|
-| Token Sentiment | `/api/sentiment?token=SOL` | 0.01 USDC | bullish/bearish + confidence |
-| Whale Tracker | `/api/whales?min=100000` | 0.02 USDC | recent large transfers |
-| Risk Score | `/api/risk?address=...` | 0.03 USDC | wallet risk assessment |
+- `createPaymentToken` / `verifyPaymentToken` — HMAC happy paths, tamper, expiry, key rotation
+- `verify` — clientRefId match + amount match → verified; not yet indexed → pending; amount mismatch → InvalidPayment; replay → ReplayError
+- Rate limiter — IP / wallet bucket semantics
+- Subscriber — fresh tick parsing, multi-tick batch ordering, watermark advance / hold-on-failure, abort on stop
 
-Demo agent:
+### Integration (10 scenarios, devnet, gated on `PX402_DEVNET=1`)
 
-1. Deposits 1 USDC into PER (one-time via `@px402/cli`)
-2. Calls all 3 APIs via `@px402/client`
-3. Combines results into a trading signal
-4. Dashboard shows: 3 calls, 0.06 USDC spent, Solana explorer shows only the deposit
+Detailed list in [`tests/integration/README.md`](./tests/integration/README.md). Highlights:
 
-## Implementation Phases
+- 01: single payment smoke
+- 04: 10 concurrent distinct wallets — concurrency regression
+- 05: 30-payment burst — stress baseline
+- 07-10: HTTP-edge security paths (TTL expiry, amount mismatch, tampered token, replay)
 
-Solo builder, ~3 weeks. Phase 3 onward splits into parallel lanes dispatchable to CC workers.
+Test 06 (subscriber-lag / orphan-pop recovery) is architecturally obsolete in the single-tx model; kept until deletion lands.
 
-### Phase 1: Protocol Core (Days 1-4)
+### Smokes (per-adapter)
 
-- `@px402/core`: HMAC token sign/verify, memo verification, rate limiter, logsSubscribe subscriber
-- `@px402/hono`: middleware wrapping core
-- One endpoint behind middleware + one client script, full round trip on devnet
-- Unit tests for core (100% coverage target) + one E2E against live devnet
-- Ship Assignment #2 from original plan here
+`examples/server-express/`, `examples/server-next/`, `examples/mcp-smoke/` — each pays one priced route on devnet end-to-end. Used as the adapter regression suite.
 
-### Phase 2: Client SDK + first demo API (Days 5-7)
-
-- `@px402/client`: fetch wrapper, deposit, balance, withdraw
-- `apps/demo-apis/sentiment`: first API behind middleware
-- Integration test: client → sentiment API → private payment → 200
-- Deploy demo-apis to Railway
-
-### Phase 3: Parallel lanes (Days 8-14)
-
-**Lane A** (can start once Phase 2 ships):
-- `apps/demo-apis/whales` and `apps/demo-apis/risk`
-- Second + third demo APIs, same middleware
-
-**Lane B:**
-- `@px402/cli`: deposit/balance/withdraw/history commands
-- `examples/agent`: standalone agent calling all 3 APIs
-
-**Lane C:**
-- `@px402/express` and `@px402/next` adapters
-- Integration tests per adapter
-
-### Phase 4: MCP + Dashboard + polish (Days 15-18)
-
-- `@px402/mcp`: 5 MCP tools wrapping client SDK
-- `apps/dashboard`: Next.js payment history + "privacy proof" split view
-- Publish all `@px402/*` packages to npm
-- README with integration guide
-
-### Phase 5: Demo + submission (Days 19-21)
-
-- 3-min demo video (Problem → Solution → Demo)
-- Colosseum submission
-- Submission materials: repo, deployed URLs, video link
-
-## Test Plan
-
-```
-@px402/core
-├── createPaymentToken()
-│   ├── [UNIT] happy: valid config → {paymentId, token}
-│   ├── [UNIT] deterministic HMAC given fixed payload
-│   └── [UNIT] rejects invalid amount/path
-├── verifyPaymentToken()
-│   ├── [UNIT] valid current-key token → payload
-│   ├── [UNIT] tampered payload → InvalidTokenError
-│   ├── [UNIT] expired token → ExpiredError
-│   ├── [UNIT] previous-key token during rotation window → payload
-│   └── [UNIT] token signed by third key → InvalidTokenError
-├── verifyPaymentOnPer()
-│   ├── [UNIT] memo match + amount match → verified (mock RPC)
-│   ├── [UNIT] memo not yet indexed → pending
-│   ├── [UNIT] memo match but amount mismatch → InvalidPayment
-│   ├── [UNIT] tx signature already used → ReplayError
-│   └── [UNIT] RPC error → RetryableError
-└── rate limiter
-    ├── [UNIT] IP limit: N+1 requests from same IP → 429
-    ├── [UNIT] per-wallet limit: bucket separate from IP
-    └── [UNIT] limits reset after window
-
-@px402/hono, @px402/express, @px402/next  (per adapter)
-├── [INT→E2E] mount middleware, hit /api/data without payment → 402 + headers
-├── [INT→E2E] valid token + memo → 200 + content
-├── [INT→E2E] streaming response path (Next only) → 200
-└── [INT→E2E] error handler compat
-
-@px402/client
-├── client.fetch()
-│   ├── [E2E] 402 → pay → retry 200 → returns data
-│   ├── [E2E] insufficient PER balance → InsufficientBalanceError
-│   ├── [E2E] second retry returns 402 → exponential backoff → success
-│   ├── [E2E] payment_id expires mid-retry → re-request 402 → pay → succeed
-│   └── [E2E] network error on transfer → retry → success
-├── client.deposit() → balance updates on PER
-├── client.balance() → matches API response
-└── client.withdraw() → funds back on mainnet
-
-Concurrent flows
-├── [E2E] Two agents paying to same server simultaneously → both verify
-│   (CRITICAL regression — memo verification unlocks this, must stay green)
-└── [E2E] Same agent paying N endpoints rapidly → memo-disambiguated
-
-CLI + MCP + Dashboard
-├── [SMOKE] px402 deposit 1.0 → balance == 1.0
-├── [SMOKE] px402 balance → prints balance
-├── [SMOKE] MCP tool discovery lists all 5 tools
-└── [SMOKE] dashboard renders payment history from log
-```
-
-**CRITICAL regression test:** two agents paying same server concurrently. The original plan was broken on this case. Memo verification fixes it. A regression test MUST prove it stays fixed.
-
-**Infrastructure:** mock MagicBlock API server for fast unit tests (no devnet in CI). One devnet integration run on demand.
-
-## Demo Video Flow (3 min)
-
-1. **(30s) Problem:** "x402 lets agents pay for APIs on Solana. Every payment is public. I can watch your agent's wallet: you call a sentiment API 50 times a day, a whale tracker 10 times, a risk scorer 5 times. Now I know your strategy."
-
-2. **(30s) Solution:** "px402 is x402 with private payments. Same flow. 402, pay, get data. The payment goes through MagicBlock's Private Ephemeral Rollup. No mainnet trace."
-
-3. **(20s) Server setup:** Adding `@px402/hono` middleware to a server. Three lines of code. "API providers opt in by adding the middleware."
-
-4. **(40s) Agent demo:** Agent deposits 1 USDC into PER. Agent calls all 3 APIs. Show each 402, payment, response. Solana explorer: only the initial deposit. Dashboard: full payment history visible to the creator.
-
-5. **(30s) Privacy proof:** Split screen. Left: Solana explorer, agent's wallet, zero outgoing transactions after the deposit. Right: px402 dashboard, 3 API calls, 0.06 USDC spent. "Blockchain sees one deposit. Dashboard sees everything."
-
-6. **(10s) Close:** "px402. Private API payments for agents. Built on MagicBlock PER."
-
-## Error Handling
+## Error handling
 
 | Scenario | Response | Resolution |
 |----------|----------|------------|
-| Insufficient PER balance | 402 + balance hint | Agent tops up via `client.deposit()` |
-| PER transfer succeeds but memo not yet in logsSubscribe stream | 402 again | Client retries at 500ms, 1s, 2s |
-| Payment_id expired (>5 min) | 402 + "expired" | Client requests fresh payment_id, pays again |
-| Server logsSubscribe WS drops | server reconnects, falls back to polling during gap | Client retries succeed once WS back |
-| HMAC signature invalid | 401 Unauthorized | Client did not receive token from this server |
-| Agent claims payment but didn't pay | 402 persists | Memo lookup never matches. No free rides. |
-| Multiple agents pay simultaneously | All verified independently | Memo disambiguates — no ordering dependency |
-| Rate limit hit | 429 + Retry-After | Client backs off, retries |
+| Insufficient base-USDC balance | client throws `Px402TransferError` | Agent tops up via `client.deposit()` or external transfer |
+| Deposit landed, settlement not yet cranked | `402 payment_pending` | Client retries per `retryDelaysMs` until subscriber emits the tick |
+| Token TTL elapsed mid-retry | `402 reason: "expired"` + fresh paymentId | Client pays again with the new id |
+| HMAC tamper or mismatched id / path / amount / destination | `401` | Client did not receive this token from this server |
+| Same tx signature replayed | `409 replay` | Client cannot reuse a settled paymentId |
+| Two agents pay simultaneously to same server | both verify independently | `clientRefId` namespaces the index — no ordering dependency |
+| Rate limit | `429 + Retry-After` | Client respects header, retries |
+| Subscriber stalled (>30s no successful poll) | `stalled` event fires | Operator alerts; redeploy with a new `rpcUrl` if needed |
+| MagicBlock REST returns stale blockhash | client transparently retries `postBuild` up to 3× | No adopter-visible error |
 
-## NOT In Scope
+## Out of scope (for 0.1)
 
-- x402 fallback for non-PER clients (deferred to stretch)
-- Rate limiting behind WAF or CDN (core middleware only)
-- Non-USDC tokens (USDC devnet mint only)
-- Payment splits / revenue share (stretch in original plan, out now)
-- Multi-chain (Solana PER only)
-- Next.js Pages Router (App Router only)
-- Encrypted memo content (memo is plaintext ULID; not PII, not linkable without server HMAC secret)
-- Public Solana tx lookup (memo verification does not touch mainnet)
+See [`KNOWN_LIMITATIONS.md`](./KNOWN_LIMITATIONS.md) for the live list. Major exclusions:
 
-## What Already Exists (don't rebuild)
+- Multi-tenant subscriber (one `receiverWallet` per instance)
+- Multi-RPC pool with health-checking
+- Persisted in-flight verification state (watermark is persisted; clientRefId index is not)
+- x402 fallback for non-PER clients
+- Pages Router (Next adapter is App Router only)
+- Non-USDC tokens (devnet USDC mint only)
 
-- MagicBlock Private Payments REST API — deposit/transfer/withdraw endpoints
-- MagicBlock Ephemeral Rollup RPC — Solana-compatible, returns memo in getSignaturesForAddress
-- `@magicblock-labs/ephemeral-rollups-sdk` — delegate/undelegate/initVault/withdraw instructions
-- Solana Memo Program — via API's `memo` field
-- Coinbase x402 middleware — reference implementation to adapt header conventions from
-- ULID library (`ulidx`) — don't write one
-- Hono / Express / Next middleware patterns — standard plumbing
-- `@modelcontextprotocol/sdk` — off-the-shelf MCP server
-- `@solana/web3.js` `sendRawTransaction` to ephemeral connection — submission path confirmed via MagicBlock demo repo
+## Dependencies
 
-## Open Questions
+- MagicBlock Private Payments REST API (devnet + production)
+- `@magicblock-labs/ephemeral-rollups-sdk`
+- `@solana/web3.js`, `@solana/spl-token`
+- `hono`, `express`, `next`
+- `@modelcontextprotocol/sdk`
+- `zod` (config validation)
 
-All three blockers from the original plan are now resolved. Remaining unknowns surface during implementation, not before:
+Removed since the 2026-05-13 amendment: `ws` (WebSocket client — `logsSubscribe` path abandoned); `ulidx` (paymentId is u63, not ULID).
 
-1. Production `tee.magicblock.app` endpoint auth requirements. Devnet ER allows unauthenticated read. Production may require server wallet auth. Test early in Phase 1.
-2. PER balance query auth. `/v1/spl/private-balance` returned "authorization is required" during devnet probe. Confirm server wallet can sign the auth challenge.
-3. Whether `logsSubscribe("all")` on ER can be filtered to a single ATA at subscribe-time vs filtering server-side. Performance concern only, not correctness.
-
-## Success Criteria
-
-- [ ] Protocol works end-to-end: agent pays API via PER, gets content, no mainnet trace
-- [ ] Middleware installable in <5 lines across Hono, Express, Next.js
-- [ ] Client SDK handles 402 detection + PER payment automatically
-- [ ] 3 demo APIs running behind px402
-- [ ] MCP tools work with Claude
-- [ ] Dashboard shows private payment history
-- [ ] "Privacy proof" split screen: Solana explorer vs px402 dashboard
-- [ ] Demo video in Problem → Solution → Demo format
-- [ ] Live deployment + public GitHub repo
-- [ ] All `@px402/*` packages published to npm
-- [ ] CRITICAL regression test: two concurrent agents both verify
-
-## Distribution Plan
-
-- GitHub repo (public, required)
-- npm org `@px402` with packages: `core`, `hono`, `express`, `next`, `client`, `cli`, `mcp`
-- Live deployment: demo-apis on Railway, dashboard on Vercel
-- Submit to: Colosseum Frontier + MagicBlock Privacy Track
-
-## Devnet Bootstrap State (2026-04-21)
+## Devnet bootstrap state
 
 | Artifact | Value |
 |----------|-------|
 | Test USDC mint | `5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse` |
-| Name / Symbol | USD Coin / USDC (mimics Circle USDC for demo authenticity) |
 | Decimals | 6 |
 | Mint keypair | `~/.config/solana/px402-usdc-mint.json` |
 | Mint authority | Allen's base wallet `3wBhCBpCudbtfdaGdBRWhjsRq9B2yAkAgKadjJkVdAiA` |
-| Supply minted | 1,000,000 USDC |
-| Allen's ATA | `3PkQ4JM6WWWEpxoaQtFczYgn47ZkMmdFWySSBfGVVh6v` |
-| Metadata URI | https://raw.githubusercontent.com/Allen-Saji/px402-assets/main/metadata.json |
-| Asset repo | https://github.com/Allen-Saji/px402-assets |
-| PER initialized | true |
 | PER validator | `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57` |
-| PER transfer queue | `4dA398Eh9P61oGLqebRTYEQD7n4HvwxButoU5NM9C2gu` |
+| PER transfer queue PDA | `4dA398Eh9P61oGLqebRTYEQD7n4HvwxButoU5NM9C2gu` |
+| Delegation program | `DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh` |
+| SPL-PP program | `SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2` |
+| Server keypair | `~/.config/solana/px402-server.json` (auto-gen on first integration run) |
 
-Bootstrap scripts at [[Projects/px402/bootstrap/README]].
+## Engineering review trail
 
-Devnet init-mint RTT measured: 460ms submit + 961ms confirm = 1421ms total on base chain.
+### 2026-04-21 — original review
 
-## Dependencies
+All 6 architectural issues from the original draft were resolved:
 
-- MagicBlock Private Payments API (devnet confirmed, production on `tee.magicblock.app`)
-- `@magicblock-labs/ephemeral-rollups-sdk`
-- `@solana/web3.js`
-- `@solana/spl-token`
-- `hono`, `express`, `next`
-- `@modelcontextprotocol/sdk`
-- `ulidx`
-- `ws` (WebSocket client for logsSubscribe)
-- `zod` (config validation)
+1. Balance-delta verification was broken under out-of-order arrival → replaced with memo-based verification
+2. Memo test ran on live devnet; PER REST accepted `memo` field; ER RPC returned it on `getSignaturesForAddress`
+3. DoS on payment-id issuance → IP + per-wallet rate limit in core middleware
+4. Server state → stateless via HMAC-signed payment tokens (no Postgres dependency)
+5. Framework coupling → core + Hono + Express + Next.js App Router adapters
+6. Agent deposit UX → SDK + CLI + MCP surfaces
 
-## Engineering Review Trail (2026-04-21)
+Performance: `logsSubscribe` WebSocket chosen for a sub-50ms verification narrative. Client retry: 500ms / 1s / 2s / fresh.
 
-This section captures the review session for future reference. Each finding below changed the design.
+### 2026-05-13 — protocol-change amendment
 
-### Step 0: Scope Challenge
+Between 2026-05-08 and 2026-05-13, MagicBlock moved the crank from ER (`ProcessTransferQueueTick` on a `Crank11…` program) to base chain (`ExecuteReadyQueuedTransfer` signed by validator `MAS1…k57` through delegation program `DELeGG…eSh` → SPL-PP CPI). This invalidated every assumption in the original Decision Row 1 + Row 9.
 
-All 5 deliverables held as planned (server, client, MCP, 3 APIs, dashboard). Dashboard reduction considered but rejected.
+**Findings:**
 
-### Section 1: Architecture
+- Same queue PDA on both chains; the SDK's shuttle abstraction delegates an ER copy of the queue, but the actual settlement-observable tx now lands on base.
+- `client_ref_id` is still emitted as a program log line on the settlement tx; sender / receiver / amount come from `meta.pre/postTokenBalances` filtered by mint.
+- The original log-truncation workaround (213-char limit on `ProcessTransferQueueTick` lines, forcing amount to be sourced from a separate `DepositAndQueueTransfer` log) no longer applies — settlement is a single tx with balance deltas.
+- `logsSubscribe` was never re-tested against the base RPC; the polling subscriber is the only path that ships.
 
-**Issue 1 resolved: balance-delta verification was broken.** Original plan's cumulative balance check rejected any single payment when another was still pending. Memo test unlocked trivial memo-based verification.
+**Decisions changed:**
 
-**Issue 2 resolved: memo test ran on live devnet.** 
-- `POST /v1/spl/transfer` accepts `memo` field
-- Ephemeral RPC returns memo in `getSignaturesForAddress` response
-- magicblock-core 0.8.8, full Solana-RPC compatibility
-- Cost of memo: +61 bytes, +~500 CUs (~10%), fees negligible inside PER
+- Decision Row 1: memo → `clientRefId`-based verification via base-chain polling.
+- Decision Row 9: persistent WebSocket subscriber → polling subscriber on base RPC.
+- Decision Row 10: fixed 500ms / 1s / 2s retry → configurable `retryDelaysMs` because devnet cadence is now upstream-controlled (~4 min).
+- Privacy framing tightened: "encrypted destinations" / "invisible on mainnet" → "TEE breaks the link between deposit and settlement"; sender, mint, amount remain visible on both transactions.
 
-**Issue 3 resolved: DoS on payment_id issuance.** IP + per-wallet rate limit in core middleware.
+**Validation:**
 
-**Issue 4 resolved: server state.** Stateless server via HMAC-signed payment tokens. Adopters do not need Postgres.
-
-**Issue 5 resolved: framework coupling.** Core + Hono + Express + Next.js App Router adapters.
-
-**Issue 6 resolved: agent deposit UX.** Three surfaces: SDK method, CLI, MCP tool.
-
-### Section 2: Code Quality / Structure
-
-- Monorepo: pnpm workspaces, packages per concern
-- Npm scope: `@px402`
-- HMAC secret: env var + auto-gen in dev + two-key rotation buffer
-
-### Section 3: Test Review
-
-30+ test cases mapped across 8 packages. CRITICAL regression: two concurrent agents both verify.
-
-### Section 4: Performance
-
-- logsSubscribe WebSocket chosen over polling for <50ms verification narrative in demo
-- Rate limiter memory bounded via LRU eviction
-- Client retry backoff: 500ms / 1s / 2s / fresh (based on measured confirmation latency)
-
-### Latency Tests (2026-04-21)
-
-Funded devnet wallet `3wBhCBpCudbtfdaGdBRWhjsRq9B2yAkAgKadjJkVdAiA`.
-
-| Test | Result |
-|------|--------|
-| `getLatestBlockhash` RTT, ER direct | min 100ms, p50 205ms, p90 645ms |
-| `sendRawTransaction` on base chain | 281-302ms (leader accepts) |
-| `confirmTransaction('confirmed')` on base | 1432-1536ms |
-| ER sendRawTx estimate | ~300ms submit + ~100ms confirm = ~400ms (scaled by block-time ratio) |
-| Commitment semantics on ER | **inverted vs mainnet** — `finalized` > `processed` in slot number |
-| `signatureSubscribe` on ER | supported, 101ms ACK |
-
-### Outside voice
-
-Skipped. Findings had high confidence, decisions were concrete, Allen had scope to build.
+- 19 historical ticks + 4 fresh ticks across smokes + integration tests parsed correctly under the new subscriber.
+- Smoke runs against express / next / mcp adapters: all PASS on devnet (236s / 235s / 244s).
+- HTTP-edge integration tests (07 / 08 / 09 / 10): all PASS.
 
 ## References
 
-- [[px402 Design]] (this file)
-- Original draft: archived, superseded by this doc on 2026-04-21
-- MagicBlock API docs: https://docs.magicblock.gg/pages/private-ephemeral-rollups-pers/api-reference/per/introduction
-- Transfer endpoint: https://docs.magicblock.gg/pages/private-ephemeral-rollups-pers/api-reference/per/transfer
-- Private balance: https://docs.magicblock.gg/pages/private-ephemeral-rollups-pers/api-reference/per/private-balance
+- [README.md](./README.md) — published surface (kept fresh; this doc covers *why*)
+- [CHANGELOG.md](./CHANGELOG.md) — release log
+- [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) — current 0.1 gaps + workarounds
+- MagicBlock API: https://docs.magicblock.gg/pages/private-ephemeral-rollups-pers/api-reference/per/introduction
 - MagicBlock private-payments-demo: https://github.com/magicblock-labs/private-payments-demo
-- Colosseum Codex write-up: https://blog.colosseum.com/umbra-sdk-magicblock-private-payments-x402/
 - x402 reference (Coinbase): https://github.com/coinbase/x402
-- Colosseum Frontier hackathon: https://www.colosseum.org/
+- Colosseum Codex write-up: https://blog.colosseum.com/umbra-sdk-magicblock-private-payments-x402/

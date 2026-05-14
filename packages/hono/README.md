@@ -21,10 +21,10 @@ const MINT = "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse";
 const VALIDATOR = "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57";
 
 const subscriber = new PrivateTransferSubscriber({
-  rpcUrl: "https://devnet.magicblock.app",
+  rpcUrl: "https://rpc.magicblock.app/devnet", // base RPC
   queuePda: deriveQueuePda(MINT, VALIDATOR).toBase58(),
+  mint: MINT,
   receiverWallet: SERVER_WALLET,
-  commitment: "finalized", // ER commitment is INVERTED: "finalized" = newest
 });
 await subscriber.start();
 

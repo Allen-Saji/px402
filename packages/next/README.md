@@ -22,10 +22,10 @@ const VALIDATOR = "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57";
 
 // Hoist + start once. Persist across hot reloads in dev with the global cache trick.
 const subscriber = new PrivateTransferSubscriber({
-  rpcUrl: "https://devnet.magicblock.app",
+  rpcUrl: "https://rpc.magicblock.app/devnet", // base RPC
   queuePda: deriveQueuePda(MINT, VALIDATOR).toBase58(),
+  mint: MINT,
   receiverWallet: SERVER_WALLET,
-  commitment: "finalized", // ER commitment is INVERTED: "finalized" = newest
 });
 void subscriber.start();
 
@@ -46,7 +46,7 @@ export const GET = withPx402(
 ## Caveats
 
 - **App Router only.** No Pages Router support. The wrapper depends on `NextRequest` / `NextResponse`.
-- **Long-running subscriber.** `PrivateTransferSubscriber` runs continuously and polls the ER queue PDA. **It will not work on Vercel serverless** (functions are ephemeral). Run on a long-lived Node process: Railway, Fly, Render (paid tier — free tier sleeps), or self-hosted.
+- **Long-running subscriber.** `PrivateTransferSubscriber` runs continuously and polls the base-chain queue PDA. **It will not work on Vercel serverless** (functions are ephemeral). Run on a long-lived Node process: Railway, Fly, Render (paid tier — free tier sleeps), or self-hosted.
 - **Hot reloads.** In dev, hoist the subscriber on `globalThis` to avoid spawning a new poller per route file.
 
 ## Rate limiting

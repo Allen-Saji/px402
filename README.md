@@ -2,7 +2,7 @@
 
 Private-payment extension of the [x402](https://github.com/coinbase/x402) protocol. Agents pay for APIs with USDC on Solana, routed through MagicBlock's Private Ephemeral Rollups so the recipient (and therefore which API the agent consumed) stays hidden.
 
-**Status:** pre-alpha. End-to-end verified on devnet: a `fetch()` call against a px402-gated endpoint returns a 200 in roughly four seconds, including the base-chain payment, TEE decryption, queue crank, and server-side verify.
+**Status:** pre-alpha. End-to-end verified on devnet — `fetch()` against a px402-gated endpoint returns 200 once the base-chain payment, TEE shuttle, queue crank, and server-side verify all complete. Round-trip latency is bounded by MagicBlock's crank cadence (see [Known limitations](./KNOWN_LIMITATIONS.md)).
 
 ## How it works
 
@@ -43,7 +43,7 @@ After paying, the client retries the original request with `X-Payment-Id` + `X-P
 | Status | Meaning |
 |---|---|
 | `200` | Verified. Response includes `X-Payment-Signature` (the settlement tx). |
-| `402 payment_pending` | Transfer seen on-chain but the crank has not yet popped the queue. Client retries. |
+| `402 payment_pending` | Agent's deposit is on-chain but the crank has not yet executed `ExecuteReadyQueuedTransfer` for it. Client retries. |
 | `402 reason: "expired"` | Token TTL elapsed. Response carries a fresh `X-Payment-Id` + token; client pays again. |
 | `401` | Token invalid (tampered, mismatched id/path/amount/destination). |
 | `409 replay` | Same tx signature already consumed. |
@@ -77,23 +77,17 @@ These are implementation-reality findings the original design doc does not cover
 
 2. **`X-Payment-Address` must be a wallet pubkey, not an ATA.** The REST API treats `to` as a wallet and derives the ATA itself. Passing an ATA causes it to derive an ATA-of-an-ATA, which doesn't exist on chain and the tx fails with `InvalidWritableAccount`.
 
-3. **Memos don't survive the crank.** The memo instruction rides on the agent's base-chain tx only. The ER-side `ProcessTransferQueueTick` log that signals settlement carries `clientRefId` instead. px402 uses `clientRefId` as the payment identifier end-to-end.
+3. **Memos don't survive the crank.** The memo instruction rides on the agent's base-chain deposit tx only. The crank emits a separate base-chain `ExecuteReadyQueuedTransfer` instruction whose program log carries `client_ref_id`. px402 uses `clientRefId` as the payment identifier end-to-end. Amount, sender, and receiver are recovered from `meta.preTokenBalances` / `meta.postTokenBalances` deltas on the same tx, filtered by mint.
 
-4. **MagicBlock log lines truncate at ~213 characters.** The pop log cuts off the trailing `amount:` field when `clientRefId` is long. The subscriber indexes amount from the earlier `DepositAndQueueTransfer` log and cross-references by `clientRefId`.
+4. **The subscriber polls; it does not subscribe.** `getSignaturesForAddress` on the base RPC with an `until` watermark, parallel `getTransaction` fetches in batches of 16. Three deterministic phases per chunk — parallel fetch, local parse, sorted apply — keyed on `(slot ASC, txOrder ASC)` so multi-tick chunks land in chronological order. `logsSubscribe` against MagicBlock ER accepted subscriptions but never delivered notifications, so WS was never wired in.
 
-5. **`logsSubscribe` on MagicBlock ER accepts subscriptions but never delivers notifications.** The subscriber polls `getSignaturesForAddress` with an `until` watermark and fetches transactions in parallel batches of 16.
+5. **The crank won't run unless someone kicks it.** Servers must call `GET /v1/spl/is-mint-initialized` at startup and on an interval. The endpoint registers the recurring base-chain `ExecuteReadyQueuedTransfer` crank for the queue PDA.
 
-6. **The crank won't run unless someone kicks it.** Servers must call `GET /v1/spl/is-mint-initialized` at startup and on an interval. That endpoint internally invokes `ensureTransferQueueCrankRunning`, which registers the recurring 500 ms `ProcessTransferQueueTick` on MagicBlock's `Crank11…` program.
+6. **ER commitment ordering is inverted.** `processed ≤ confirmed ≤ finalized` in slot number — opposite of mainnet, because ER has a single validator. The subscriber reads base (normal ordering); the inversion only matters for the parts of the client SDK that read ER (balance, send-to-ephemeral confirms).
 
-7. **ER commitment ordering is inverted.** `processed ≤ confirmed ≤ finalized` in slot number. Always read with `finalized`; `processed` is an older view.
+7. **Watermark only advances after the chunk's apply phase succeeds.** Earlier code advanced the watermark immediately after the RPC call, which meant any failure during processing silently lost the affected sigs. The subscriber keeps the watermark put on chunk failure; the next poll re-fetches, and the per-sig `processedSigs` set (populated only after a definitive `getTransaction` result) prevents double-processing of the ones that did succeed.
 
-8. **Insert and pop logs land in separate transactions on the queue PDA.** A naive `Promise.all` over a chunk of fetched signatures races: pop's `queuedAmounts.get` can resolve before insert's `queuedAmounts.set` completes, even though insert is chronologically older. The subscriber works in three deterministic phases per chunk: parallel fetch (network IO concurrent), local parse (no state mutation), then **sequential sorted apply** keyed on `(slot ASC, txOrder ASC, kind: insert before pop)`. Insert always lands in the index before the matching pop reads it.
-
-9. **Pops without a matching insert get buffered, not dropped.** When the subscriber starts mid-flight, an insert may have happened before the watermark seed. The subscriber buffers such orphaned pops in an in-memory map (capped at 1000 entries, 10-min TTL) and resolves them when the matching insert arrives in a later poll. If the insert never appears forward, a directed **backwards `getSignaturesForAddress({ before })`** scan walks 50 sigs back, then 200, looking for the missing insert. Backwards-scans are rate-limited to 5/minute to bound RPC load.
-
-10. **Watermark only advances after the chunk's apply phase succeeds.** Earlier code advanced the watermark immediately after the RPC call, which meant any failure during processing silently lost the affected sigs. The subscriber now keeps the watermark put on chunk failure; the next poll re-fetches, and the per-sig `processedSigs` set (populated only after a definitive `getTransaction` result) prevents double-processing of the ones that did succeed.
-
-11. **Stale blockhashes show up under load.** MagicBlock's REST API returns an unsigned transaction with a recent blockhash. Under devnet congestion the blockhash can expire before the client signs and submits. `Px402Client.transfer` retries up to 3× with fresh `postBuild` calls on `block height exceeded` / `Connect Timeout` / `fetch failed` / similar transient errors before surfacing them.
+8. **Stale blockhashes show up under load.** MagicBlock's REST API returns an unsigned transaction with a recent blockhash. Under devnet congestion the blockhash can expire before the client signs and submits. `Px402Client.transfer` retries up to 3× with fresh `postBuild` calls on `block height exceeded` / `Connect Timeout` / `fetch failed` / similar transient errors before surfacing them.
 
 ## Demo
 
@@ -133,10 +127,10 @@ pnpm test:devnet                 # full suite (~12 min total when run sequential
 pnpm stress -- --agents 30 --rate 6 --duration 5
 ```
 
-Empirical numbers from a clean devnet run:
-- Single payment end-to-end: **~4 seconds** (no retries)
-- 30-payment burst over 5 seconds, distinct wallets: **96.7% success, p50 8.3s, p90 15.9s, avg 1.34 retries**
-- Subscriber-lag scenario (insert older than watermark): orphan pop is buffered, backwards-scanned, and resolved within ~5 seconds
+Devnet validation (post-2026-05-13 protocol change):
+- Single payment round-trip is bounded by MagicBlock's base-chain crank cadence — currently ~4 minutes on devnet.
+- Mainnet target is sub-second; not yet verified.
+- See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) for the crank-cadence caveat and the recommended client retry-window workaround.
 
 ## Known limitations
 
