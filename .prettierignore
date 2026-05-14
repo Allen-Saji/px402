@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.next/
+.turbo/
+.vercel/
+coverage/
+out/
+build/
+pnpm-lock.yaml
+*.tsbuildinfo
+
+# Generated artifacts
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+
+# Integration test scratch
+tests/integration/.tmp/
+
+# Stress harness output
+stress-*.csv
+
+# Vendored third-party legal text — don't reformat
+LICENSE
+NOTICE

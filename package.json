@@ -18,10 +18,13 @@
     "stress": "pnpm --filter px402-scripts stress:burst",
     "fund": "pnpm --filter px402-integration-tests fund",
     "typecheck": "pnpm -r run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}\"",
     "clean": "pnpm -r exec rm -rf dist"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "prettier": "^3.4.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
