@@ -43,6 +43,23 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - `.github/` community files: issue templates (bug, feature),
   pull-request template, and Dependabot config (weekly npm + monthly
   GitHub Actions).
+- `.github/workflows/ci.yml` — pnpm build / typecheck / test on PRs
+  against Node 22 and 24.
+- `.editorconfig`, `.prettierrc.json`, `.prettierignore` — contributor
+  formatting baseline. Prettier is opt-in via `pnpm format`; not yet
+  enforced in CI.
+
+### Docs
+
+- `design.md` moved to `docs/architecture.md` (matches the existing
+  `docs/operations/` layout).
+- `KNOWN_LIMITATIONS.md` folded into the README's "Limitations &
+  roadmap" section and removed. Inbound links across `tests/`,
+  `packages/core/`, and `docs/architecture.md` updated.
+- Personal-machine references scrubbed from `docs/architecture.md`
+  ("Allen's base wallet" → test-only mint authority; absolute path to
+  the private diagram-kit composition replaced with a generic
+  pointer).
 
 ### Validation
 

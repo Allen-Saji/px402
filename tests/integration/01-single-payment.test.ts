@@ -28,8 +28,8 @@ describe.skipIf(!ENABLED)("01 single payment", () => {
     expect(result.signature).toBeTruthy();
     expect(result.paymentId).toBeTruthy();
     // Latency budget tracks current devnet crank cadence (~3-5min after the
-    // 2026-05-13 protocol change). Mainnet target is sub-second. See
-    // KNOWN_LIMITATIONS.md.
+    // 2026-05-13 protocol change). Mainnet target is sub-second. See the
+    // README's "Limitations & roadmap" section.
     expect(result.latencyMs).toBeLessThan(600_000);
     expect(result.body).toMatchObject({ token: "SOL" });
   }, 660_000);

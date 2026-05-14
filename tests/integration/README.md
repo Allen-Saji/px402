@@ -33,7 +33,7 @@ pnpm --filter px402-integration-tests fund -- --refund --count 30
 
 | # | File | What it asserts |
 |---|---|---|
-| 01 | `01-single-payment.test.ts` | Smoke: one payment → 200 within ~10 min (devnet crank-bound; see [KNOWN_LIMITATIONS.md](../../KNOWN_LIMITATIONS.md)) |
+| 01 | `01-single-payment.test.ts` | Smoke: one payment → 200 within ~10 min (devnet crank-bound; see [README "Limitations & roadmap"](../../README.md#limitations--roadmap)) |
 | 02 | `02-sequential-payments.test.ts` | 5 sequential calls, all succeed, no state pollution |
 | 03 | `03-concurrent-same-wallet.test.ts` | 5 parallel from one wallet — exercises same-batch settlement ordering |
 | 04 | `04-concurrent-distinct-wallets.test.ts` | 10 parallel from 10 wallets — original race condition at scale |

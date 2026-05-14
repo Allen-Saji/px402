@@ -2,7 +2,7 @@
 
 Private-payment extension of the [x402](https://github.com/coinbase/x402) protocol. Agents pay for APIs with USDC on Solana, routed through MagicBlock's Private Ephemeral Rollups so the recipient (and therefore which API the agent consumed) stays hidden.
 
-**Status:** pre-alpha. End-to-end verified on devnet — `fetch()` against a px402-gated endpoint returns 200 once the base-chain payment, TEE shuttle, queue crank, and server-side verify all complete. Round-trip latency is bounded by MagicBlock's crank cadence (see [Known limitations](./KNOWN_LIMITATIONS.md)).
+**Status:** pre-alpha. End-to-end verified on devnet — `fetch()` against a px402-gated endpoint returns 200 once the base-chain payment, TEE shuttle, queue crank, and server-side verify all complete. Round-trip latency is bounded by MagicBlock's crank cadence (see [Limitations & roadmap](#limitations--roadmap)).
 
 ## How it works
 
@@ -130,14 +130,37 @@ pnpm stress -- --agents 30 --rate 6 --duration 5
 Devnet validation (post-2026-05-13 protocol change):
 - Single payment round-trip is bounded by MagicBlock's base-chain crank cadence — currently ~4 minutes on devnet.
 - Mainnet target is sub-second; not yet verified.
-- See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) for the crank-cadence caveat and the recommended client retry-window workaround.
+- See [Limitations & roadmap](#limitations--roadmap) for the crank-cadence caveat and the recommended client retry-window workaround.
 
-## Known limitations
+## Limitations & roadmap
 
-See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) for what's deliberately
-out of scope for 0.1.0 (multi-tenant subscriber, multi-RPC pool,
-persisted in-flight state) along with workarounds for each.
+px402 0.1 is the production-ready first cut of the protocol: graceful shutdown, crash-safe watermark persistence, RFC 6585 rate limiting, observability hooks, and typed retry semantics for fund-moving operations. Everything below is **deliberately out of scope for 0.1** — open an issue if any of these block your adoption.
+
+### Out of scope for 0.1
+
+**Multi-tenant subscriber.** One `PrivateTransferSubscriber` listens on one `receiverWallet`. Multi-receiver indexing would add complexity (per-receiver `clientRefId` namespacing, per-tenant rate-limit buckets) that no current adopter needs. *Workaround:* one subscriber instance per tenant — overhead is small (bounded watermark + TTL index).
+
+**Multi-RPC pool with health-checking.** The subscriber polls a single `rpcUrl`. On sustained outage, the `stalled` event fires after 30s and you redeploy with a new endpoint. Most production deploys front MagicBlock with Helius or Triton, which handle failover internally. *Workaround:* alert on `stalled`, persist the watermark, swap `rpcUrl` and redeploy — no payments dropped during the swap.
+
+**Persisted in-flight verification state.** Crash-safe **watermark** persistence ships in 0.1, but the in-memory `clientRefId` index between `tick` and `verify` is not persisted. If the server crashes between receiving a tick and the agent retrying, that one payment resolves via backwards-scan after restart. The agent's retry budget + post-restart backfill covers normal crash windows. The right persistence shape (Redis-backed? SQLite?) depends on the adopter's stack — built-in would over-fit. *Workaround:* persist the watermark + accept that the rare sub-second-crash case triggers one extra retry.
+
+**Devnet crank cadence vs default client retry window.** Since the 2026-05-13 protocol change, devnet crank latency has been observed to spike well past `@px402/client`'s default retry budget (~30s across 4 attempts). When that happens, the client throws `MaxRetriesExceededError` even though the subscriber later catches the tick correctly. Crank cadence is a MagicBlock-side knob; mainnet target is sub-second. *Workaround:* devnet adopters override `retryDelaysMs` — e.g. `[2000, 4000, 8000, 16000, 32000, 64000]`.
+
+**`STALLED_THRESHOLD_MS` is a compile-time constant** (30s). `tokenTtlMs` is fully configurable; the stall threshold is not. Cheap to expose — open an issue if you need it.
+
+### What ships in 0.1
+
+For comparison — explicitly supported:
+
+- Async graceful shutdown with `AbortController` drain (`subscriber.stop()`)
+- Crash-safe watermark persistence via `onWatermarkAdvance` + `initialWatermark`
+- `ready` / `tick` / `error` / `stalled` event hooks for Sentry / Datadog wiring
+- RFC 6585 `Retry-After` on 429
+- HMAC token rotation with `serverSecret: { current, previous }` overlap
+- Typed `Px402DepositError` / `Px402WithdrawError` with `phase` + `partialSignature` for safe retry
+- 1-hour soak harness in `scripts/soak.ts`
+- Single-RPC failure model with a documented operator runbook (`docs/operations/`)
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).

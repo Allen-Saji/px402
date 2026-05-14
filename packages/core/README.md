@@ -139,7 +139,7 @@ subscriber.on("stalled", ({ lastSuccessfulPollAt, error }) => {
 Single-RPC failure model is intentional for v0.1 — most production deploys
 front their MagicBlock endpoint with Helius or Triton anyway and rely on the
 provider's own failover. Multi-RPC pool with health-checking is on the
-v0.2 roadmap (see `KNOWN_LIMITATIONS.md`).
+v0.2 roadmap (see the root README's "Limitations & roadmap" section).
 
 If your RPC has a persistent outage, redeploy with a new `rpcUrl` env var —
 the persisted watermark (above) ensures no payments are dropped during the

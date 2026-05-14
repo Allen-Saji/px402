@@ -127,7 +127,7 @@ Steps 3 and 4 are asynchronous: the client retries step 6 while step 4 has not y
 
 ### Architecture diagram
 
-The sequence diagram is rendered from `~/projects/diagram-kit/private/projects/Px402Animated.tsx` and shipped as [`./assets/architecture.png`](./assets/architecture.png). Re-render both when the protocol changes.
+The sequence diagram is shipped as [`../assets/architecture.png`](../assets/architecture.png). It is generated from a separate diagram-kit composition; re-render whenever the protocol shape changes (lane labels, step semantics, or the green-footer privacy framing).
 
 ### Key differences from public x402
 
@@ -204,7 +204,7 @@ Test 06 (subscriber-lag / orphan-pop recovery) is architecturally obsolete in th
 
 ## Out of scope (for 0.1)
 
-See [`KNOWN_LIMITATIONS.md`](./KNOWN_LIMITATIONS.md) for the live list. Major exclusions:
+See the root README's [Limitations & roadmap](../README.md#limitations--roadmap) section for the live list. Major exclusions:
 
 - Multi-tenant subscriber (one `receiverWallet` per instance)
 - Multi-RPC pool with health-checking
@@ -231,7 +231,7 @@ Removed since the 2026-05-13 amendment: `ws` (WebSocket client — `logsSubscrib
 | Test USDC mint | `5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse` |
 | Decimals | 6 |
 | Mint keypair | `~/.config/solana/px402-usdc-mint.json` |
-| Mint authority | Allen's base wallet `3wBhCBpCudbtfdaGdBRWhjsRq9B2yAkAgKadjJkVdAiA` |
+| Mint authority | `3wBhCBpCudbtfdaGdBRWhjsRq9B2yAkAgKadjJkVdAiA` (test-only) |
 | PER validator | `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57` |
 | PER transfer queue PDA | `4dA398Eh9P61oGLqebRTYEQD7n4HvwxButoU5NM9C2gu` |
 | Delegation program | `DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh` |
@@ -281,7 +281,7 @@ Between 2026-05-08 and 2026-05-13, MagicBlock moved the crank from ER (`ProcessT
 
 - [README.md](./README.md) — published surface (kept fresh; this doc covers *why*)
 - [CHANGELOG.md](./CHANGELOG.md) — release log
-- [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) — current 0.1 gaps + workarounds
+- Root README [Limitations & roadmap](../README.md#limitations--roadmap) — current 0.1 gaps + workarounds
 - MagicBlock API: https://docs.magicblock.gg/pages/private-ephemeral-rollups-pers/api-reference/per/introduction
 - MagicBlock private-payments-demo: https://github.com/magicblock-labs/private-payments-demo
 - x402 reference (Coinbase): https://github.com/coinbase/x402
