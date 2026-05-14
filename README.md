@@ -1,8 +1,55 @@
 # px402
 
+[![CI](https://github.com/Allen-Saji/px402/actions/workflows/ci.yml/badge.svg)](https://github.com/Allen-Saji/px402/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+[![Node: 22+](https://img.shields.io/badge/node-%E2%89%A522-339933.svg)](./package.json)
+
 Private-payment extension of the [x402](https://github.com/coinbase/x402) protocol. Agents pay for APIs with USDC on Solana, routed through MagicBlock's Private Ephemeral Rollups so the recipient (and therefore which API the agent consumed) stays hidden.
 
-**Status:** pre-alpha. End-to-end verified on devnet — `fetch()` against a px402-gated endpoint returns 200 once the base-chain payment, TEE shuttle, queue crank, and server-side verify all complete. Round-trip latency is bounded by MagicBlock's crank cadence (see [Limitations & roadmap](#limitations--roadmap)).
+> **Pre-alpha · devnet-only.** End-to-end verified on devnet; not yet published to npm. Mainnet target is sub-second round-trip but **unverified**. Devnet round-trip is bounded by MagicBlock's base-chain crank cadence (~4 min as of 2026-05-13). See [Limitations & roadmap](#limitations--roadmap).
+
+## Quick start
+
+```bash
+# Server (Hono example — see packages/express + packages/next for adapters)
+pnpm add @px402/hono @px402/core
+```
+
+```ts
+import { Hono } from "hono";
+import { px402 } from "@px402/hono";
+import { PrivateTransferSubscriber, deriveQueuePda } from "@px402/core";
+
+const SERVER_WALLET = "<your server wallet pubkey>";
+const MINT = "<USDC mint>";
+const VALIDATOR = "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57";
+
+const subscriber = new PrivateTransferSubscriber({
+  rpcUrl: "https://rpc.magicblock.app/devnet",
+  queuePda: deriveQueuePda(MINT, VALIDATOR).toBase58(),
+  mint: MINT,
+  receiverWallet: SERVER_WALLET,
+});
+await subscriber.start();
+
+const app = new Hono();
+app.use(px402({
+  serverSecret: process.env.PX402_SERVER_SECRET!,
+  paymentAddress: SERVER_WALLET,
+  pricing: { "/api/sentiment": "10000" }, // 0.01 USDC
+  subscriber,
+}));
+app.get("/api/sentiment", (c) => c.json({ signal: "bullish" }));
+```
+
+```ts
+// Agent
+import { Px402Client } from "@px402/client";
+
+const client = new Px402Client({ wallet, mint });
+const res = await client.fetch("https://your-server/api/sentiment?token=SOL");
+const data = await res.json();
+```
 
 ## How it works
 

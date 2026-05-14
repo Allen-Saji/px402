@@ -5,8 +5,21 @@
     "access": "public"
   },
   "description": "Hono middleware for px402 private agent payments",
+  "keywords": [
+    "solana",
+    "x402",
+    "magicblock",
+    "hono",
+    "middleware",
+    "agents",
+    "payments"
+  ],
   "license": "Apache-2.0",
   "author": "Allen Saji <allensaji04@gmail.com>",
+  "homepage": "https://github.com/Allen-Saji/px402#readme",
+  "bugs": {
+    "url": "https://github.com/Allen-Saji/px402/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Allen-Saji/px402.git",

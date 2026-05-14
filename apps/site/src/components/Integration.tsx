@@ -1,12 +1,16 @@
 import { CodeBlock } from "./CodeBlock";
 import { SectionHead } from "./HowItWorks";
+import { SITE } from "@/lib/site";
 
 const SERVER_CODE = `import { Hono } from "hono";
 import { px402 } from "@px402/hono";
 import { PrivateTransferSubscriber } from "@px402/core";
 
 const subscriber = new PrivateTransferSubscriber({
-  rpcUrl, queuePda, receiverWallet,
+  rpcUrl,        // base RPC
+  queuePda,
+  mint,
+  receiverWallet,
 });
 await subscriber.start();
 
@@ -26,7 +30,7 @@ const CLIENT_CODE = `import { Px402Client } from "@px402/client";
 
 const client = new Px402Client({ wallet, mint });
 const res = await client.fetch(
-  "https://api.px402.allensaji.dev/api/sentiment?token=SOL",
+  "${SITE.demoApiBase}/api/sentiment?token=SOL",
 );
 const data = await res.json();`;
 

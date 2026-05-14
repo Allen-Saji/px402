@@ -10,7 +10,7 @@ export function Footer() {
         <div>
           <Wordmark size="base" />
           <p className="mt-4 text-[13px] text-muted leading-[1.65] max-w-[40ch] font-mono">
-            MIT licensed. Built on{" "}
+            Apache-2.0 licensed. Built on{" "}
             <Link
               href={SITE.magicblockUrl}
               target="_blank"
@@ -72,7 +72,7 @@ export function Footer() {
               rel="noreferrer"
               className="text-fg hover:text-accent transition-colors cursor-pointer underline-offset-2 hover:underline"
             >
-              Allen Saji
+              {SITE.authorName}
             </Link>
           </div>
           <div className="mt-1">
@@ -92,7 +92,7 @@ export function Footer() {
             rel="noreferrer"
             className="mt-2 inline-block text-muted hover:text-fg transition-colors cursor-pointer"
           >
-            @SajiBhai011
+            {SITE.twitterHandle}
           </Link>
         </div>
       </div>

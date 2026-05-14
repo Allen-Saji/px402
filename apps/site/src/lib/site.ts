@@ -1,21 +1,38 @@
-// Centralized constants for the site. Swap these in one place when the demo
-// API or repo URL changes (e.g. when Railway domain is wired up).
+// Centralized constants for the site. The deployment URLs and creator credit
+// fields read from NEXT_PUBLIC_* env vars at build time so anyone running a
+// fork of the site (Vercel preview, internal mirror, downstream protocol
+// fork) can override them without touching code. See apps/site/.env.example.
+
+const env = (key: string, fallback: string): string => {
+  if (typeof process !== "undefined" && process.env && process.env[key]) {
+    return process.env[key] as string;
+  }
+  return fallback;
+};
 
 export const SITE = {
   name: "px402",
   description:
     "Private agentic payments. An HTTP layer over MagicBlock's Private Ephemeral Rollups. Agents pay USDC for APIs. The recipient stays hidden.",
-  url: "https://px402.allensaji.dev",
+
+  // Deployment URLs — override per-fork via NEXT_PUBLIC_* env vars.
+  url: env("NEXT_PUBLIC_SITE_URL", "https://px402.allensaji.dev"),
+  demoApiBase: env("NEXT_PUBLIC_DEMO_API_BASE", "https://api.px402.allensaji.dev"),
+
+  // Project repo (fixed — the canonical upstream).
   githubRepo: "Allen-Saji/px402",
   githubUrl: "https://github.com/Allen-Saji/px402",
-  twitterUrl: "https://x.com/SajiBhai011",
-  authorUrl: "https://allensaji.dev",
-  authorName: "Allen Saji",
-  // Demo API base. Will be swapped to the Railway URL when wired up.
-  demoApiBase: "https://api.px402.allensaji.dev",
+
+  // Creator credit — overridable for forks.
+  authorName: env("NEXT_PUBLIC_AUTHOR_NAME", "Allen Saji"),
+  authorUrl: env("NEXT_PUBLIC_AUTHOR_URL", "https://allensaji.dev"),
+  twitterHandle: env("NEXT_PUBLIC_TWITTER_HANDLE", "@SajiBhai011"),
+  twitterUrl: env("NEXT_PUBLIC_TWITTER_URL", "https://x.com/SajiBhai011"),
+
+  // External refs (do not change per fork).
   magicblockUrl: "https://magicblock.app",
   x402Url: "https://x402.org",
-} as const;
+};
 
 export const DEMO_ENDPOINTS = [
   {

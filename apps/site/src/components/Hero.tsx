@@ -11,14 +11,14 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 
 // Tokenized curl line for chunked typewriter reveal.
 // Order matters; chunks reveal sequentially.
-const CURL_CHUNKS = [
-  "$ ",
-  "curl ",
-  "https://",
-  "api.px402.allensaji.dev",
-  "/api/sentiment",
-  "?token=SOL",
-];
+const DEMO_HOST = (() => {
+  try {
+    return new URL(SITE.demoApiBase).host;
+  } catch {
+    return "api.px402.example";
+  }
+})();
+const CURL_CHUNKS = ["$ ", "curl ", "https://", DEMO_HOST, "/api/sentiment", "?token=SOL"];
 
 export function Hero({ stars }: { stars: number | null }) {
   const reduce = useReducedMotion();
@@ -136,7 +136,7 @@ function CurlReveal() {
         <span className="text-muted">$ </span>
         <span className="text-accent">curl</span>
         <span className="text-fg"> https://</span>
-        <span className="text-fg">api.px402.allensaji.dev</span>
+        <span className="text-fg">{DEMO_HOST}</span>
         <span className="text-fg">/api/sentiment</span>
         <span className="text-muted">?token=SOL</span>
       </pre>

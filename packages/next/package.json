@@ -5,8 +5,22 @@
     "access": "public"
   },
   "description": "Next.js App Router wrapper for px402 private agent payments",
+  "keywords": [
+    "solana",
+    "x402",
+    "magicblock",
+    "next",
+    "nextjs",
+    "app-router",
+    "agents",
+    "payments"
+  ],
   "license": "Apache-2.0",
   "author": "Allen Saji <allensaji04@gmail.com>",
+  "homepage": "https://github.com/Allen-Saji/px402#readme",
+  "bugs": {
+    "url": "https://github.com/Allen-Saji/px402/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Allen-Saji/px402.git",
@@ -42,6 +56,6 @@
     "next": ">=14.0.0"
   },
   "devDependencies": {
-    "next": "^15.1.3"
+    "next": "^16.2.5"
   }
 }

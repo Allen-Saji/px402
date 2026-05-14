@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "px402 · private agentic payments",
     description: SITE.description,
-    creator: "@SajiBhai011",
+    creator: SITE.twitterHandle,
     images: ["/diagrams/px402-static.png"],
   },
   icons: {

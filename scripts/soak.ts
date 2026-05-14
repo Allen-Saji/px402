@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 import { PrivateTransferSubscriber, deriveQueuePda } from "@px402/core";
 import {
-  PX402_EPHEMERAL_RPC_URL,
+  PX402_BASE_RPC_URL,
   PX402_USDC_MINT,
   PX402_VALIDATOR,
   TMP_DIR,
@@ -72,8 +72,6 @@ interface Sample {
   heapUsedMb: number;
   externalMb: number;
   indexed: number;
-  queued: number;
-  orphans: number;
   usedSigs: number;
   pollsSinceLastSample: number;
   errorsSinceLastSample: number;
@@ -93,8 +91,6 @@ function snapshot(
     heapUsedMb: round(mem.heapUsed / 1024 / 1024),
     externalMb: round(mem.external / 1024 / 1024),
     indexed: status.indexedCount,
-    queued: status.queuedCount,
-    orphans: status.orphanCount,
     usedSigs: status.usedSigCount,
     pollsSinceLastSample: pollsThisInterval,
     errorsSinceLastSample: errorsThisInterval,
@@ -112,16 +108,13 @@ function csvRow(s: Sample): string {
     s.heapUsedMb,
     s.externalMb,
     s.indexed,
-    s.queued,
-    s.orphans,
     s.usedSigs,
     s.pollsSinceLastSample,
     s.errorsSinceLastSample,
   ].join(",");
 }
 
-const CSV_HEADER =
-  "t_sec,rss_mb,heap_used_mb,external_mb,indexed,queued,orphans,used_sigs,polls,errors";
+const CSV_HEADER = "t_sec,rss_mb,heap_used_mb,external_mb,indexed,used_sigs,polls,errors";
 
 /**
  * Linear least-squares slope of RSS vs time, in MB/hour. Drops the first
@@ -153,7 +146,7 @@ async function main(): Promise<void> {
   console.log("[soak] config:");
   console.log(`  queuePda    : ${queuePda}`);
   console.log(`  receiver    : ${serverKp.publicKey.toBase58()}`);
-  console.log(`  rpc         : ${PX402_EPHEMERAL_RPC_URL}`);
+  console.log(`  rpc         : ${PX402_BASE_RPC_URL}`);
   console.log(`  duration    : ${args.durationMin} min`);
   console.log(`  sample every: ${args.intervalSec} sec`);
   console.log(`  csv         : ${args.csvPath}`);
@@ -170,8 +163,9 @@ async function main(): Promise<void> {
   const errorMessages: string[] = [];
 
   const subscriber = new PrivateTransferSubscriber({
-    rpcUrl: PX402_EPHEMERAL_RPC_URL,
+    rpcUrl: PX402_BASE_RPC_URL,
     queuePda,
+    mint: PX402_USDC_MINT,
     receiverWallet: serverKp.publicKey.toBase58(),
     pollIntervalMs: 500,
     logger: {

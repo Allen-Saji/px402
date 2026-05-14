@@ -38,7 +38,6 @@ pnpm --filter px402-integration-tests fund -- --refund --count 30
 | 03 | `03-concurrent-same-wallet.test.ts` | 5 parallel from one wallet — exercises same-batch settlement ordering |
 | 04 | `04-concurrent-distinct-wallets.test.ts` | 10 parallel from 10 wallets — original race condition at scale |
 | 05 | `05-burst-stress.test.ts` | 30 payments staggered over 5s; ≥28 succeed; reports p50/p90/p99 |
-| 06 | `06-subscriber-lag.test.ts` | Pay BEFORE subscriber starts; watermark backfill recovers the missed tick. Architecturally obsolete in the single-tx model — kept until deletion lands. |
 | 07 | `07-token-expiry.test.ts` | Token TTL of 5s expires mid-retry; client gets fresh 402; pays again; succeeds |
 | 08 | `08-amount-mismatch.test.ts` | Agent pays half the quoted amount; server returns 402 amount_mismatch |
 | 09 | `09-tampered-token.test.ts` | Flipped HMAC payload byte → 401 invalid_token |

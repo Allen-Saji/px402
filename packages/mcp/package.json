@@ -5,8 +5,22 @@
     "access": "public"
   },
   "description": "MCP server that lets Claude pay for APIs via px402",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "solana",
+    "x402",
+    "magicblock",
+    "agents",
+    "payments"
+  ],
   "license": "Apache-2.0",
   "author": "Allen Saji <allensaji04@gmail.com>",
+  "homepage": "https://github.com/Allen-Saji/px402#readme",
+  "bugs": {
+    "url": "https://github.com/Allen-Saji/px402/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Allen-Saji/px402.git",
