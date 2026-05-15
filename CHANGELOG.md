@@ -7,6 +7,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-05-15
+
+First public release. All six packages published to npm under `@px402/*`.
+
 ### Changed
 
 - **License: MIT → Apache-2.0** across all packages and the repo root.
