@@ -41,12 +41,65 @@ export const metadata: Metadata = {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
   },
   robots: { index: true, follow: true },
+  alternates: { canonical: SITE.url },
+  keywords: [
+    "x402",
+    "agentic payments",
+    "private payments",
+    "Solana",
+    "MagicBlock",
+    "Private Ephemeral Rollup",
+    "USDC",
+    "AI agents",
+    "MCP",
+    "stablecoin payments",
+  ],
+  authors: [{ name: SITE.authorName, url: SITE.authorUrl }],
+  creator: SITE.authorName,
+  publisher: SITE.authorName,
 };
 
 export const viewport: Viewport = {
   themeColor: "#0a0a0b",
   width: "device-width",
   initialScale: 1,
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": `${SITE.url}#software`,
+      name: "px402",
+      description: SITE.description,
+      url: SITE.url,
+      codeRepository: SITE.githubUrl,
+      programmingLanguage: "TypeScript",
+      runtimePlatform: "Node.js",
+      license: "https://www.apache.org/licenses/LICENSE-2.0",
+      author: {
+        "@type": "Person",
+        name: SITE.authorName,
+        url: SITE.authorUrl,
+      },
+      keywords:
+        "x402, agentic payments, Solana, MagicBlock, private payments, USDC, MCP, AI agents",
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE.url}#website`,
+      url: SITE.url,
+      name: "px402",
+      description: SITE.description,
+      publisher: {
+        "@type": "Person",
+        name: SITE.authorName,
+        url: SITE.authorUrl,
+      },
+      inLanguage: "en",
+    },
+  ],
 };
 
 export default function RootLayout({
@@ -59,6 +112,12 @@ export default function RootLayout({
       lang="en"
       className={`${GeistSans.variable} ${jetbrainsMono.variable}`}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

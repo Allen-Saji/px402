@@ -1,0 +1,84 @@
+# px402
+
+> Private-payment extension of the x402 protocol. Agents pay for APIs with USDC on Solana, routed through MagicBlock's Private Ephemeral Rollups so the recipient (and therefore which API the agent consumed) stays hidden.
+
+px402 is an open-source TypeScript monorepo published under `@px402/*` on npm. It implements the x402 402-then-retry HTTP flow on top of a private settlement primitive: the sender, amount, and mint stay public on Solana, but the link between the agent's deposit and the eventual recipient is broken by MagicBlock's TEE-backed crank.
+
+Status: 0.1.0, Apache-2.0, pre-alpha, devnet-only. Mainnet target is sub-second round-trip but unverified. License is Apache-2.0.
+
+## Packages
+
+- [@px402/core](https://github.com/Allen-Saji/px402/tree/main/packages/core): HMAC tokens, base-chain polling subscriber, PDA helpers, framework-agnostic `decide()`.
+- [@px402/hono](https://github.com/Allen-Saji/px402/tree/main/packages/hono): Hono middleware.
+- [@px402/express](https://github.com/Allen-Saji/px402/tree/main/packages/express): Express middleware.
+- [@px402/next](https://github.com/Allen-Saji/px402/tree/main/packages/next): Next.js App Router wrapper.
+- [@px402/client](https://github.com/Allen-Saji/px402/tree/main/packages/client): Fetch wrapper plus deposit, withdraw, balance, privateBalance, transfer.
+- [@px402/mcp](https://github.com/Allen-Saji/px402/tree/main/packages/mcp): MCP server exposing `px402_fetch` and `px402_balance` tools.
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/Allen-Saji/px402/main/README.md): Overview, quickstart, 402 response headers, retry semantics, demo, development.
+- [Architecture](https://raw.githubusercontent.com/Allen-Saji/px402/main/docs/architecture.md): Protocol design, flow diagram, privacy model, trust assumptions.
+- [Server-secret rotation runbook](https://raw.githubusercontent.com/Allen-Saji/px402/main/docs/operations/rotate-server-secret.md): Zero-downtime HMAC key rotation.
+- [CHANGELOG](https://raw.githubusercontent.com/Allen-Saji/px402/main/CHANGELOG.md): Versioned history.
+- [CONTRIBUTING](https://raw.githubusercontent.com/Allen-Saji/px402/main/CONTRIBUTING.md): How to contribute.
+- [SECURITY](https://raw.githubusercontent.com/Allen-Saji/px402/main/SECURITY.md): Vulnerability disclosure policy.
+
+## Quickstart
+
+Install adapter + client:
+
+```bash
+pnpm add @px402/hono @px402/core
+```
+
+Wire the server (Hono example; Express and Next adapters are drop-in equivalents):
+
+```ts
+import { Hono } from "hono";
+import { px402 } from "@px402/hono";
+import { PrivateTransferSubscriber, deriveQueuePda } from "@px402/core";
+
+const subscriber = new PrivateTransferSubscriber({
+  rpcUrl: "https://rpc.magicblock.app/devnet",
+  queuePda: deriveQueuePda(MINT, VALIDATOR).toBase58(),
+  mint: MINT,
+  receiverWallet: SERVER_WALLET,
+});
+await subscriber.start();
+
+const app = new Hono();
+app.use(px402({
+  serverSecret: process.env.PX402_SERVER_SECRET!,
+  paymentAddress: SERVER_WALLET,
+  pricing: { "/api/sentiment": "10000" },
+  subscriber,
+}));
+```
+
+Agent side:
+
+```ts
+import { Px402Client } from "@px402/client";
+const client = new Px402Client({ wallet, mint });
+const res = await client.fetch("https://your-server/api/sentiment");
+```
+
+## What's public versus hidden
+
+- Public on Solana: sender wallet, USDC mint, amount.
+- Hidden: the recipient — and therefore which API the agent paid for. An external observer cannot link an agent's deposit transaction to which service or operator received the funds.
+
+The privacy claim is recipient-unlinkability via the TEE shuttle. It is not "invisible on chain".
+
+## Source
+
+- [GitHub repo](https://github.com/Allen-Saji/px402): Canonical upstream, Apache-2.0.
+- [Issues](https://github.com/Allen-Saji/px402/issues): Bug reports and feature requests.
+- [Author](https://allensaji.dev): Allen Saji — independent Solana developer, Bengaluru.
+
+## Optional
+
+- [MagicBlock](https://magicblock.app): Private Ephemeral Rollup primitive used for the settlement shuttle.
+- [x402 spec](https://x402.org): Original Coinbase 402-payment-required HTTP protocol that px402 extends.
+- [npm: @px402/core](https://www.npmjs.com/package/@px402/core): Pre-publish; will resolve once 0.1.0 ships.
