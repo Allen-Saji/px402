@@ -55,7 +55,7 @@ export const DEMO_ENDPOINTS = [
 export const PACKAGES = [
   {
     name: "@px402/core",
-    purpose: "HMAC tokens, crank-log subscriber, framework-agnostic decide().",
+    purpose: "HMAC tokens, base-chain polling subscriber, framework-agnostic decide().",
   },
   {
     name: "@px402/hono",
