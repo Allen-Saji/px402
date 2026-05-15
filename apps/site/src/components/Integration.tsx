@@ -1,30 +1,7 @@
 import { CodeBlock } from "./CodeBlock";
+import { ServerSnippet } from "./ServerSnippet";
 import { SectionHead } from "./HowItWorks";
 import { SITE } from "@/lib/site";
-
-const SERVER_CODE = `import { Hono } from "hono";
-import { px402 } from "@px402/hono";
-import { PrivateTransferSubscriber } from "@px402/core";
-
-const subscriber = new PrivateTransferSubscriber({
-  rpcUrl,        // base RPC
-  queuePda,
-  mint,
-  receiverWallet,
-});
-await subscriber.start();
-
-const app = new Hono();
-app.use(px402({
-  serverSecret: process.env.PX402_SECRET!,
-  paymentAddress: SERVER_WALLET,
-  pricing: { "/api/sentiment": "10000" }, // micro-USDC
-  subscriber,
-}));
-
-app.get("/api/sentiment", (c) =>
-  c.json({ signal: "bullish" }),
-);`;
 
 const CLIENT_CODE = `import { Px402Client } from "@px402/client";
 
@@ -54,7 +31,7 @@ export function Integration() {
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent/70" />
               server
             </div>
-            <CodeBlock filename="server.ts" code={SERVER_CODE} />
+            <ServerSnippet />
           </div>
           <div>
             <div className="font-mono text-[12px] text-muted mb-3 inline-flex items-center gap-2">
