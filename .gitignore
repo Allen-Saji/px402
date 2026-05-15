@@ -19,3 +19,4 @@ packages/*/src/**/*.d.ts.map
 tests/integration/.tmp/
 # Stress harness output
 stress-*.csv
+.vercel
