@@ -6,7 +6,7 @@
 
 Private-payment extension of the [x402](https://github.com/coinbase/x402) protocol. Agents pay for APIs with USDC on Solana, routed through MagicBlock's Private Ephemeral Rollups so the recipient (and therefore which API the agent consumed) stays hidden.
 
-> **Pre-alpha · devnet-only.** End-to-end verified on devnet; not yet published to npm. Mainnet target is sub-second round-trip but **unverified**. Devnet round-trip is bounded by MagicBlock's base-chain crank cadence (~4 min as of 2026-05-13). See [Limitations & roadmap](#limitations--roadmap).
+> **Pre-alpha · devnet-only.** 0.1.0 published to npm under [`@px402/*`](https://www.npmjs.com/org/px402). End-to-end verified on devnet. Mainnet target is sub-second round-trip but **unverified**. Devnet round-trip is bounded by MagicBlock's base-chain crank cadence (~4 min as of 2026-05-13). See [Limitations & roadmap](#limitations--roadmap).
 
 ## Quick start
 

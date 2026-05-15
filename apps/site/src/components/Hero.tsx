@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
-import { Github, Star, Terminal } from "lucide-react";
+import { Github, Star, Terminal, Package } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { SITE, PRIMARY_CURL } from "@/lib/site";
 import { formatStars } from "@/lib/github";
@@ -41,7 +41,7 @@ export function Hero({ stars }: { stars: number | null }) {
             className="font-mono text-[12px] tracking-[0.04em] text-warn mb-6 inline-flex items-center gap-2"
           >
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn" />
-            pre-alpha · devnet
+            pre-alpha · devnet · v{SITE.latestVersion} on npm
           </motion.div>
 
           {/* Headline */}
@@ -110,6 +110,19 @@ export function Hero({ stars }: { stars: number | null }) {
                   <span className="text-fg">{formatStars(stars)}</span>
                 </span>
               ) : null}
+            </Link>
+
+            <Link
+              href={SITE.npmOrgUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border bg-surface hover:bg-surface-2 hover:border-border-strong text-fg transition-colors cursor-pointer font-mono text-[13px]"
+            >
+              <Package size={15} strokeWidth={1.75} />
+              <span>npm</span>
+              <span className="inline-flex items-center gap-1 pl-2 ml-1 border-l border-border text-muted">
+                <span className="text-fg">v{SITE.latestVersion}</span>
+              </span>
             </Link>
 
             <Link

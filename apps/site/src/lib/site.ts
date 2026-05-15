@@ -23,6 +23,10 @@ export const SITE = {
   githubRepo: "Allen-Saji/px402",
   githubUrl: "https://github.com/Allen-Saji/px402",
 
+  // npm org — published @px402/* packages.
+  npmOrgUrl: "https://www.npmjs.com/org/px402",
+  latestVersion: "0.1.0",
+
   // Creator credit — overridable for forks.
   authorName: env("NEXT_PUBLIC_AUTHOR_NAME", "Allen Saji"),
   authorUrl: env("NEXT_PUBLIC_AUTHOR_URL", "https://allensaji.dev"),

@@ -31,7 +31,17 @@ export function Packages() {
         </div>
 
         <p className="mt-6 text-[14px] text-muted font-mono leading-[1.65]">
-          coming to npm soon. for now:{" "}
+          on npm:{" "}
+          <Link
+            href="https://www.npmjs.com/org/px402"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-fg hover:text-accent transition-colors cursor-pointer underline-offset-2 hover:underline"
+          >
+            npmjs.com/org/px402
+            <ExternalLink size={12} strokeWidth={1.75} />
+          </Link>
+          {" · "}source:{" "}
           <Link
             href={SITE.githubUrl}
             target="_blank"

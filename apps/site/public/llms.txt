@@ -81,4 +81,4 @@ The privacy claim is recipient-unlinkability via the TEE shuttle. It is not "inv
 
 - [MagicBlock](https://magicblock.app): Private Ephemeral Rollup primitive used for the settlement shuttle.
 - [x402 spec](https://x402.org): Original Coinbase 402-payment-required HTTP protocol that px402 extends.
-- [npm: @px402/core](https://www.npmjs.com/package/@px402/core): Pre-publish; will resolve once 0.1.0 ships.
+- [npm: @px402 org](https://www.npmjs.com/org/px402): All six packages published at 0.1.0.
