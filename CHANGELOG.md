@@ -44,9 +44,8 @@ First public release. All six packages published to npm under `@px402/*`.
 
 - `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and
   `SECURITY.md` at the repo root for OSS readiness.
-- `.github/` community files: issue templates (bug, feature),
-  pull-request template, and Dependabot config (weekly npm + monthly
-  GitHub Actions).
+- `.github/` community files: issue templates (bug, feature) and
+  pull-request template.
 - `.github/workflows/ci.yml` — pnpm build / typecheck / test on PRs
   against Node 22 and 24.
 - `.editorconfig`, `.prettierrc.json`, `.prettierignore` — contributor
