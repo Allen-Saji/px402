@@ -7,6 +7,31 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-16
+
+Docs-only release. Lockstep version bump across all six `@px402/*` packages.
+
+### Changed
+
+- **All package quickstart snippets now reference Circle's devnet USDC mint**
+  (`4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`) instead of the px402
+  internal test mint. Adopters can faucet from `faucet.circle.com`
+  (Solana → Devnet) and run the demo end-to-end without us having to mint
+  them custom test USDC. Touches `@px402/client`, `@px402/hono`,
+  `@px402/express`, `@px402/next`, `@px402/mcp` READMEs and the
+  agent / server smoke examples + `apps/demo-apis/.env.example`.
+- `docs/architecture.md` now documents both mints (Circle USDC for
+  adopters / examples; the internal px402 mint for our integration tests
+  where we own the authority keypair and need frictionless funding).
+
+### Unchanged
+
+- No runtime behavior changes. Token format, HMAC verification, subscriber,
+  `decide()`, framework adapters, MCP tools — all identical to 0.1.0.
+- Internal integration test suite (`tests/integration/`) and per-package
+  unit tests deliberately remain on the internal mint so `fund-pool.ts`
+  bypasses faucet rate limits.
+
 ## [0.1.0] — 2026-05-15
 
 First public release. All six packages published to npm under `@px402/*`.
