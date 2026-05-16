@@ -1,6 +1,9 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+// Custom px402 test mint — Allen owns mint authority (~/.config/solana/px402-usdc-mint.json)
+// so the fund-pool script can freely top up wallets without faucet rate limits.
+// User-facing examples / READMEs / demo-apis default to Circle devnet USDC instead.
 export const PX402_USDC_MINT = "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse";
 export const PX402_VALIDATOR = "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57";
 export const PX402_API_URL = "https://payments.magicblock.app";

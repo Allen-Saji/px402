@@ -41,7 +41,7 @@ function bootDemoApis(serverPubkey: string, port: number): { child: ChildProcess
     ...process.env,
     PORT: String(port),
     PX402_PAYMENT_ADDRESS: serverPubkey,
-    PX402_MINT: "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse",
+    PX402_MINT: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
     PX402_API_URL: "https://payments.magicblock.app",
     PX402_BASE_RPC_URL: "https://rpc.magicblock.app/devnet",
     PX402_EPHEMERAL_RPC_URL: "https://devnet.magicblock.app",
@@ -102,7 +102,7 @@ async function main() {
       env: {
         ...process.env,
         PX402_KEYPAIR_PATH: keypairPath,
-        PX402_MINT: "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse",
+        PX402_MINT: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
         PX402_API_URL: "https://payments.magicblock.app",
         PX402_BASE_RPC_URL: "https://api.devnet.solana.com",
         PX402_EPHEMERAL_RPC_URL: "https://devnet.magicblock.app",

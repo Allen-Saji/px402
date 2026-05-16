@@ -9,7 +9,7 @@ crank → server verify → 200` round trip.
 
 - Funder wallet at `~/.config/solana/id.json` holding:
   - **≥0.5 SOL on devnet** (covers `solana airdrop` retries + airdrop fallback transfers)
-  - **≥30 USDC of the px402 test mint (`5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse`)** to fund 30 stress wallets at 1 USDC each
+  - **≥30 USDC of the px402 internal test mint (`5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse`)** to fund 30 stress wallets at 1 USDC each. Tests deliberately stay on the internal mint (Allen owns the authority keypair at `~/.config/solana/px402-usdc-mint.json`) so funding bypasses faucet rate limits. Adopters / external users hit Circle devnet USDC instead — see `docs/architecture.md`.
 - Server keypair at `~/.config/solana/px402-server.json` (auto-generated on first run)
 - Network access to `payments.magicblock.app`, `rpc.magicblock.app`, `devnet.magicblock.app`, `api.devnet.solana.com`
 

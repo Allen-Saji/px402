@@ -18,7 +18,7 @@ const wallet = Keypair.fromSecretKey(/* your agent's secret key */);
 
 const client = new Px402Client({
   wallet,
-  mint: "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse", // devnet test USDC
+  mint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // Circle devnet USDC (faucet.circle.com)
   cluster: "devnet",
 });
 

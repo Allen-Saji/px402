@@ -12,7 +12,7 @@
  *
  * Env:
  *   AGENT_KEYPAIR_PATH    defaults to ~/.config/solana/id.json
- *   PX402_MINT            defaults to the devnet USDC mint
+ *   PX402_MINT            defaults to Circle's devnet USDC mint (faucet at faucet.circle.com)
  *   PX402_SERVER_URL      demo-apis base URL (default http://localhost:8787)
  */
 import { readFileSync } from "node:fs";
@@ -22,7 +22,7 @@ import { Px402Client } from "@px402/client";
 import { Keypair } from "@solana/web3.js";
 
 const DEFAULT_KEYPAIR_PATH = join(homedir(), ".config/solana/id.json");
-const DEFAULT_MINT = "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse";
+const DEFAULT_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 const DEFAULT_SERVER_URL = "http://localhost:8787";
 
 function loadKeypair(path: string): Keypair {

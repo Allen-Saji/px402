@@ -30,7 +30,7 @@ After install, the `px402-mcp` binary is on your `$PATH`.
       "command": "px402-mcp",
       "env": {
         "PX402_KEYPAIR_PATH": "/absolute/path/to/agent-keypair.json",
-        "PX402_MINT": "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse",
+        "PX402_MINT": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
         "PX402_CLUSTER": "devnet"
       }
     }
@@ -50,7 +50,7 @@ Restart Claude. The two tools appear in the tool picker.
       "command": "px402-mcp",
       "env": {
         "PX402_KEYPAIR_PATH": "/absolute/path/to/agent-keypair.json",
-        "PX402_MINT": "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse",
+        "PX402_MINT": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
         "PX402_CLUSTER": "devnet"
       }
     }
@@ -77,7 +77,7 @@ import { Keypair } from "@solana/web3.js";
 
 const server = createPx402McpServer({
   wallet: Keypair.fromSecretKey(/* ... */),
-  mint: "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse",
+  mint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
 });
 await runStdio(server);
 ```

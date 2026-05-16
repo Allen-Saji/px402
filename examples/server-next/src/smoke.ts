@@ -29,7 +29,7 @@ function bootServer(serverPubkey: string, port: number): { child: ChildProcess; 
     ...process.env,
     PORT: String(port),
     PX402_PAYMENT_ADDRESS: serverPubkey,
-    PX402_MINT: "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse",
+    PX402_MINT: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
     PX402_API_URL: "https://payments.magicblock.app",
     PX402_BASE_RPC_URL: "https://rpc.magicblock.app/devnet",
     PX402_VALIDATOR: "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57",
@@ -79,7 +79,7 @@ async function main() {
 
     const client = new Px402Client({
       wallet: agent,
-      mint: "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse",
+      mint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
       apiUrl: "https://payments.magicblock.app",
       baseRpcUrl: "https://api.devnet.solana.com",
       ephemeralRpcUrl: "https://devnet.magicblock.app",

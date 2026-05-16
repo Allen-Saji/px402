@@ -211,7 +211,7 @@ See the root README's [Limitations & roadmap](../README.md#limitations--roadmap)
 - Persisted in-flight verification state (watermark is persisted; clientRefId index is not)
 - x402 fallback for non-PER clients
 - Pages Router (Next adapter is App Router only)
-- Non-USDC tokens (devnet USDC mint only)
+- Non-USDC tokens (Circle devnet USDC mint only)
 
 ## Dependencies
 
@@ -228,10 +228,11 @@ Removed since the 2026-05-13 amendment: `ws` (WebSocket client — `logsSubscrib
 
 | Artifact | Value |
 |----------|-------|
-| Test USDC mint | `5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse` |
-| Decimals | 6 |
-| Mint keypair | `~/.config/solana/px402-usdc-mint.json` |
-| Mint authority | `3wBhCBpCudbtfdaGdBRWhjsRq9B2yAkAgKadjJkVdAiA` (test-only) |
+| USDC mint — adopters / examples | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (Circle devnet USDC, faucet at `faucet.circle.com`) |
+| USDC mint — internal integration tests | `5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse` (px402-owned, frictionless funding) |
+| Decimals (both) | 6 |
+| Internal-mint keypair | `~/.config/solana/px402-usdc-mint.json` |
+| Internal-mint authority | `3wBhCBpCudbtfdaGdBRWhjsRq9B2yAkAgKadjJkVdAiA` (test-only) |
 | PER validator | `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57` |
 | PER transfer queue PDA | `4dA398Eh9P61oGLqebRTYEQD7n4HvwxButoU5NM9C2gu` |
 | Delegation program | `DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh` |

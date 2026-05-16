@@ -17,7 +17,7 @@ import { px402 } from "@px402/hono";
 import { PrivateTransferSubscriber, deriveQueuePda } from "@px402/core";
 
 const SERVER_WALLET = "6dRPtBVYiJ6iM7eQqDzCQpBDACBzYoZjGqostfZqrgGU";
-const MINT = "5CmxDcDtDiqwxy9TDVyo1Xjr4AFwQzrH7vKr8cXfkEse";
+const MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; // Circle devnet USDC (faucet.circle.com)
 const VALIDATOR = "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57";
 
 const subscriber = new PrivateTransferSubscriber({
