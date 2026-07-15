@@ -2,70 +2,102 @@ import Link from "next/link";
 import { SectionHead } from "./HowItWorks";
 import { SITE } from "@/lib/site";
 
+const THREAT_BOUNDARY = [
+  {
+    label: "Public",
+    tone: "text-risk",
+    items: ["Sender wallet", "USDC mint", "Per-call amount"],
+  },
+  {
+    label: "Hidden",
+    tone: "text-private",
+    items: ["Recipient wallet", "API route", "Revenue mapping"],
+  },
+  {
+    label: "Trusted",
+    tone: "text-signal",
+    items: ["MagicBlock TEE", "Validator execution", "Subscriber configuration"],
+  },
+] as const;
+
 const LIMITS = [
   {
     head: "Per-call amount is on-chain.",
-    body:
-      "If only one server charges 0.073 USDC for one specific endpoint, the amount itself is a fingerprint.",
+    body: "If only one server charges 0.073 USDC for one specific endpoint, the amount itself is a fingerprint.",
   },
   {
     head: "Anonymity-set size matters.",
-    body:
-      "At launch, you are alone on the validator. Privacy comes online with volume.",
+    body: "At launch, you are alone on the validator. Privacy comes online with volume.",
   },
   {
     head: "Not a drop-in x402 facilitator.",
-    body:
-      "Migrating from canonical x402-svm is a rewrite, not a config swap.",
+    body: "Migrating from canonical x402-svm is a rewrite, not a config swap.",
   },
   {
     head: "Pre-alpha. Devnet only.",
-    body:
-      "~4s single-call latency. 96.7% success at 30 concurrent. Numbers from a clean devnet run.",
+    body: "~4s single-call latency. 96.7% success at 30 concurrent. Numbers from a clean devnet run.",
   },
   {
     head: "TEE trust assumption.",
-    body:
-      "MagicBlock's TEE has the recipient mapping. If the TEE is compromised, unlinkability is revealed retroactively.",
+    body: "MagicBlock's TEE has the recipient mapping. If the TEE is compromised, unlinkability is revealed retroactively.",
   },
 ];
 
 export function HonestScope() {
   return (
-    <section id="honest" className="relative border-t border-border/60">
-      <div className="mx-auto max-w-[1100px] px-6 py-24 sm:py-32">
-        <SectionHead
-          label="honest scope"
-          title="What is NOT private (and other honest scope)."
-          warn
-        />
+    <section id="limits" className="border-b border-line bg-risk-soft/45">
+      <div className="page-shell py-20 sm:py-28">
+        <SectionHead label="threat model" title="Know the boundary before you ship." />
 
-        <ul className="mt-12 space-y-7 max-w-[72ch]">
-          {LIMITS.map((item) => (
-            <li key={item.head} className="grid grid-cols-[12px_1fr] gap-4">
-              <span
-                aria-hidden="true"
-                className="mt-[10px] block w-2 h-2 rounded-[1px] bg-warn/80"
-              />
-              <div>
-                <div className="font-mono text-[14px] text-warn">
-                  {item.head}
-                </div>
-                <p className="mt-1.5 text-[16px] leading-[1.6] text-muted-strong">
-                  {item.body}
-                </p>
+        <p className="mt-7 max-w-[60ch] text-[18px] leading-[1.6] text-quiet">
+          px402 narrows what a public observer can link. It does not make the transfer disappear,
+          remove the TEE trust assumption, or turn devnet software into production infrastructure.
+        </p>
+
+        <div className="mt-12 grid border border-ink bg-paper-bright lg:grid-cols-3">
+          {THREAT_BOUNDARY.map((column) => (
+            <div
+              key={column.label}
+              className="border-b border-ink p-6 last:border-b-0 lg:border-b-0 lg:border-r lg:last:border-r-0"
+            >
+              <div className={`font-mono text-[10px] uppercase tracking-[0.08em] ${column.tone}`}>
+                {column.label}
               </div>
-            </li>
+              <ul className="mt-5 space-y-3">
+                {column.items.map((item, index) => (
+                  <li
+                    key={item}
+                    className="grid grid-cols-[26px_1fr] gap-3 border-t border-line pt-3 font-mono text-[12px] text-ink"
+                  >
+                    <span className="text-quiet">0{index + 1}</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
 
-        <p className="mt-12 max-w-[64ch] text-[16px] leading-[1.65] text-muted-strong">
-          These are honest constraints, not roadmap items. Read the{" "}
+        <div className="mt-12 border-t border-ink">
+          {LIMITS.map((item, index) => (
+            <div
+              key={item.head}
+              className="grid gap-2 border-b border-line py-5 sm:grid-cols-[54px_260px_1fr] sm:gap-6"
+            >
+              <span className="font-mono text-[10px] text-risk">0{index + 1}</span>
+              <h3 className="font-mono text-[12px] text-ink">{item.head}</h3>
+              <p className="max-w-[62ch] text-[15px] leading-6 text-quiet">{item.body}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-9 max-w-[64ch] text-[16px] leading-[1.65] text-quiet">
+          These are current constraints, not hidden footnotes. Read the{" "}
           <Link
             href={`${SITE.githubUrl}#readme`}
             target="_blank"
             rel="noreferrer"
-            className="text-fg hover:text-accent transition-colors cursor-pointer underline-offset-4 underline decoration-border-strong hover:decoration-accent"
+            className="inline-flex min-h-11 items-center text-link text-ink transition-colors hover:text-private"
           >
             README
           </Link>{" "}

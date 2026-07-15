@@ -1,193 +1,65 @@
-"use client";
-
 import Link from "next/link";
-import { motion, useReducedMotion } from "motion/react";
-import { Github, Star, Terminal, Package } from "lucide-react";
+import { ArrowDownRight, Github, PackageCheck } from "lucide-react";
 import { CopyButton } from "./CopyButton";
-import { SITE, PRIMARY_CURL } from "@/lib/site";
-import { formatStars } from "@/lib/github";
+import { ConfidentialRail } from "./ConfidentialRail";
+import { SITE } from "@/lib/site";
 
-const EASE = [0.16, 1, 0.3, 1] as const;
+const INSTALL_COMMAND = "pnpm add @px402/client";
 
-// Tokenized curl line for chunked typewriter reveal.
-// Order matters; chunks reveal sequentially.
-const DEMO_HOST = (() => {
-  try {
-    return new URL(SITE.demoApiBase).host;
-  } catch {
-    return "api.px402.example";
-  }
-})();
-const CURL_CHUNKS = ["$ ", "curl ", "https://", DEMO_HOST, "/api/sentiment", "?token=SOL"];
-
-export function Hero({ stars }: { stars: number | null }) {
-  const reduce = useReducedMotion();
-
+export function Hero() {
   return (
-    <section className="relative overflow-hidden">
-      {/* Faint grid backdrop */}
-      <div
-        aria-hidden="true"
-        className="grid-backdrop absolute inset-0 pointer-events-none"
-      />
+    <section className="relative overflow-hidden border-b border-line">
+      <div className="page-shell relative grid min-h-[calc(100svh-64px)] items-center gap-14 py-16 lg:grid-cols-[1.02fr_0.98fr] lg:gap-16 lg:py-24">
+        <div className="max-w-[680px]">
+          <div className="rule-label text-risk">public devnet / v{SITE.latestVersion}</div>
 
-      <div className="relative mx-auto max-w-[1100px] px-6 pt-20 pb-24 sm:pt-28 sm:pb-32">
-        <div className="max-w-[720px]">
-          {/* Eyebrow */}
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: EASE }}
-            className="font-mono text-[12px] tracking-[0.04em] text-warn mb-6 inline-flex items-center gap-2"
-          >
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn" />
-            pre-alpha · devnet · v{SITE.latestVersion} on npm
-          </motion.div>
+          <h1 className="mt-7 font-display text-[52px] leading-[0.94] tracking-[-0.045em] text-ink sm:text-[72px] lg:text-[82px]">
+            Payment happened.
+            <br /> Intent stayed
+            <span className="text-private"> private.</span>
+          </h1>
 
-          {/* Headline */}
-          <motion.h1
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: EASE, delay: 0.05 }}
-            className="font-sans font-semibold text-fg text-[40px] sm:text-[56px] lg:text-[64px] leading-[1.05] tracking-[-0.025em]"
-          >
-            Private agentic payments.
-            <br />
-            <span className="text-muted-strong">x402-shaped.</span>
-          </motion.h1>
+          <p className="mt-7 max-w-[56ch] text-[18px] leading-[1.55] text-quiet sm:text-[20px]">
+            px402 is an HTTP payment layer for AI agents. It settles USDC through MagicBlock&rsquo;s
+            private rail so the public chain records payment without revealing which API received
+            it.
+          </p>
 
-          {/* Sub */}
-          <motion.p
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: EASE, delay: 0.12 }}
-            className="mt-6 max-w-[58ch] text-[17px] sm:text-[18px] leading-[1.6] text-muted-strong"
-          >
-            An HTTP layer over MagicBlock&rsquo;s Private Ephemeral Rollups.
-            Agents pay USDC for APIs. The recipient stays hidden.
-          </motion.p>
-
-          {/* Curl block */}
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: EASE, delay: 0.2 }}
-            className="mt-10 group relative"
-          >
-            <div className="absolute inset-y-0 left-0 w-[2px] bg-accent rounded-full" />
-            <div className="border border-border bg-surface rounded-md overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-2/40">
-                <div className="flex items-center gap-2 text-muted">
-                  <Terminal size={13} strokeWidth={1.75} />
-                  <span className="font-mono text-[12px]">terminal</span>
-                </div>
-                <CopyButton text={PRIMARY_CURL} label="copy" />
-              </div>
-              <div className="px-4 py-4 font-mono text-[14px] sm:text-[15px] leading-[1.55] overflow-x-auto">
-                <CurlReveal />
-              </div>
+          <div className="mt-9 flex max-w-[560px] min-w-0 items-stretch border border-ink bg-paper-bright">
+            <div className="min-w-0 flex-1 overflow-x-auto px-4 py-3 font-mono text-[12px] leading-6 text-ink sm:text-[13px]">
+              <span className="text-private">$</span> {INSTALL_COMMAND}
             </div>
-          </motion.div>
+            <CopyButton
+              text={INSTALL_COMMAND}
+              label="install command"
+              className="shrink-0 border-l border-ink px-4"
+            />
+          </div>
 
-          {/* CTAs */}
-          <motion.div
-            initial={reduce ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.7 }}
-            className="mt-6 flex flex-wrap items-center gap-3"
-          >
+          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2">
+            <Link
+              href="#quickstart"
+              className="inline-flex min-h-11 items-center gap-2 bg-private px-5 font-mono text-[11px] uppercase tracking-[0.06em] text-paper-bright transition-colors hover:bg-ink"
+            >
+              <PackageCheck size={15} />
+              Quickstart
+              <ArrowDownRight size={14} />
+            </Link>
             <Link
               href={SITE.githubUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border bg-surface hover:bg-surface-2 hover:border-border-strong text-fg transition-colors cursor-pointer font-mono text-[13px]"
+              className="inline-flex min-h-11 items-center gap-2 px-1 font-mono text-[11px] uppercase tracking-[0.06em] text-ink transition-colors hover:text-private"
             >
-              <Github size={15} strokeWidth={1.75} />
-              <span>Star on GitHub</span>
-              {stars !== null ? (
-                <span className="inline-flex items-center gap-1 pl-2 ml-1 border-l border-border text-muted">
-                  <Star size={11} className="text-accent fill-accent" />
-                  <span className="text-fg">{formatStars(stars)}</span>
-                </span>
-              ) : null}
+              <Github size={15} />
+              Read the source
             </Link>
-
-            <Link
-              href={SITE.npmOrgUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border bg-surface hover:bg-surface-2 hover:border-border-strong text-fg transition-colors cursor-pointer font-mono text-[13px]"
-            >
-              <Package size={15} strokeWidth={1.75} />
-              <span>npm</span>
-              <span className="inline-flex items-center gap-1 pl-2 ml-1 border-l border-border text-muted">
-                <span className="text-fg">v{SITE.latestVersion}</span>
-              </span>
-            </Link>
-
-            <Link
-              href={`${SITE.githubUrl}#readme`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-muted hover:text-fg transition-colors cursor-pointer font-mono text-[13px]"
-            >
-              read the protocol →
-            </Link>
-          </motion.div>
+          </div>
+        </div>
+        <div className="min-w-0 lg:-mr-3">
+          <ConfidentialRail />
         </div>
       </div>
     </section>
-  );
-}
-
-function CurlReveal() {
-  const reduce = useReducedMotion();
-
-  if (reduce) {
-    return (
-      <pre className="m-0 whitespace-pre-wrap break-all text-fg">
-        <span className="text-muted">$ </span>
-        <span className="text-accent">curl</span>
-        <span className="text-fg"> https://</span>
-        <span className="text-fg">{DEMO_HOST}</span>
-        <span className="text-fg">/api/sentiment</span>
-        <span className="text-muted">?token=SOL</span>
-      </pre>
-    );
-  }
-
-  return (
-    <pre className="m-0 whitespace-pre-wrap break-all text-fg">
-      {CURL_CHUNKS.map((chunk, i) => (
-        <motion.span
-          key={i}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{
-            duration: 0.18,
-            delay: 0.35 + i * 0.07,
-            ease: "linear",
-          }}
-          className={
-            i === 0
-              ? "text-muted"
-              : i === 1
-                ? "text-accent"
-                : i === 5
-                  ? "text-muted"
-                  : "text-fg"
-          }
-        >
-          {chunk}
-        </motion.span>
-      ))}
-      <motion.span
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.35 + CURL_CHUNKS.length * 0.07 }}
-        className="caret-blink"
-        aria-hidden="true"
-      />
-    </pre>
   );
 }

@@ -15,8 +15,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "motion": "^12.38.0",
-    "lucide-react": "^0.469.0",
-    "geist": "^1.4.2"
+    "lucide-react": "^0.469.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

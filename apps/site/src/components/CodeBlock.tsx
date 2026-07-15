@@ -37,16 +37,16 @@ function tokenize(line: string): Token[] {
 
     // Comment to end of line
     if (ch === "/" && line[i + 1] === "/") {
-      tokens.push({ text: line.slice(i), cls: "text-muted italic" });
+      tokens.push({ text: line.slice(i), cls: "text-quiet italic" });
       return tokens;
     }
 
-    // Block comment /* ... */ (single-line only — multi-line not used on the page)
+    // Block comment /* ... */ (single-line only - multi-line not used on the page)
     if (ch === "/" && line[i + 1] === "*") {
       let j = i + 2;
       while (j < n - 1 && !(line[j] === "*" && line[j + 1] === "/")) j += 1;
       const end = j < n - 1 ? j + 2 : n;
-      tokens.push({ text: line.slice(i, end), cls: "text-muted italic" });
+      tokens.push({ text: line.slice(i, end), cls: "text-quiet italic" });
       i = end;
       continue;
     }
@@ -59,7 +59,7 @@ function tokenize(line: string): Token[] {
         if (line[j] === "\\") j += 2;
         else j += 1;
       }
-      tokens.push({ text: line.slice(i, j + 1), cls: "text-emerald-300/90" });
+      tokens.push({ text: line.slice(i, j + 1), cls: "text-private" });
       i = j + 1;
       continue;
     }
@@ -68,7 +68,7 @@ function tokenize(line: string): Token[] {
     if (/[0-9]/.test(ch)) {
       let j = i;
       while (j < n && /[0-9_]/.test(line[j] ?? "")) j += 1;
-      tokens.push({ text: line.slice(i, j), cls: "text-amber-300/90" });
+      tokens.push({ text: line.slice(i, j), cls: "text-signal" });
       i = j;
       continue;
     }
@@ -79,13 +79,13 @@ function tokenize(line: string): Token[] {
       while (j < n && /[A-Za-z0-9_$]/.test(line[j] ?? "")) j += 1;
       const word = line.slice(i, j);
       if (KEYWORDS.has(word)) {
-        tokens.push({ text: word, cls: "text-violet-300/90" });
+        tokens.push({ text: word, cls: "text-risk" });
       } else if (TYPES.has(word)) {
-        tokens.push({ text: word, cls: "text-cyan-300/90" });
+        tokens.push({ text: word, cls: "text-private" });
       } else if (line[j] === "(") {
-        tokens.push({ text: word, cls: "text-fg" });
+        tokens.push({ text: word, cls: "text-ink" });
       } else {
-        tokens.push({ text: word, cls: "text-fg/90" });
+        tokens.push({ text: word, cls: "text-ink/90" });
       }
       i = j;
       continue;
@@ -101,11 +101,11 @@ function tokenize(line: string): Token[] {
     if (j === i) {
       // Unmatched single character (e.g. stray "/" between tokens). Emit one
       // char and advance so we never spin forever.
-      tokens.push({ text: ch, cls: "text-muted-strong" });
+      tokens.push({ text: ch, cls: "text-quiet" });
       i += 1;
       continue;
     }
-    tokens.push({ text: line.slice(i, j), cls: "text-muted-strong" });
+    tokens.push({ text: line.slice(i, j), cls: "text-quiet" });
     i = j;
   }
 
@@ -124,15 +124,16 @@ export function CodeBlock({
   const lines = code.split("\n");
 
   return (
-    <div className="group relative">
-      <div className="absolute inset-y-0 left-0 w-[2px] bg-accent/80 rounded-full" />
-      <div className="border border-border bg-surface rounded-md overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-2/40">
-          <div className="font-mono text-[12px] text-muted">{filename}</div>
+    <div className="group relative min-w-0 max-w-full">
+      <div className="border border-ink bg-paper-bright">
+        <div className="flex min-h-12 items-center justify-between border-b border-ink bg-paper-deep/40 pl-4">
+          <div className="min-w-0 truncate font-mono text-[10px] uppercase tracking-[0.05em] text-quiet">
+            {filename}
+          </div>
           <CopyButton text={copyText ?? code} label="copy" />
         </div>
-        <div className="overflow-x-auto">
-          <pre className="m-0 px-4 py-4 font-mono text-[13px] leading-[1.65] min-w-full">
+        <div className="max-w-full overflow-x-auto overscroll-x-contain">
+          <pre className="m-0 w-max min-w-full px-4 py-5 font-mono text-[12px] leading-[1.75] sm:text-[13px]">
             <code>
               {lines.map((line, idx) => (
                 <span key={idx} className="block">
@@ -141,7 +142,7 @@ export function CodeBlock({
                       {t.text}
                     </span>
                   ))}
-                  {line.length === 0 ? " " : null}
+                  {line.length === 0 ? "\u00a0" : null}
                 </span>
               ))}
             </code>

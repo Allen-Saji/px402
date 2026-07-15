@@ -1,22 +1,35 @@
 import type { Metadata, Viewport } from "next";
-import { GeistSans } from "geist/font/sans";
-import { JetBrains_Mono } from "next/font/google";
+import { Fragment_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
 import { SITE } from "@/lib/site";
 import "./globals.css";
 
-const jetbrainsMono = JetBrains_Mono({
+const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-geist-mono",
+  weight: "variable",
+  variable: "--font-instrument-sans",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-instrument-serif",
+  display: "swap",
+});
+
+const fragmentMono = Fragment_Mono({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-fragment-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "px402 · private agentic payments, x402-shaped",
+  title: "px402 | private agentic payments, x402-shaped",
   description: SITE.description,
   metadataBase: new URL(SITE.url),
   openGraph: {
-    title: "px402 · private agentic payments, x402-shaped",
+    title: "px402 | private agentic payments, x402-shaped",
     description: SITE.description,
     url: SITE.url,
     siteName: "px402",
@@ -32,7 +45,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "px402 · private agentic payments",
+    title: "px402 | private agentic payments",
     description: SITE.description,
     creator: SITE.twitterHandle,
     images: ["/diagrams/px402-static.png"],
@@ -60,7 +73,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0b",
+  themeColor: "#f2efe6",
   width: "device-width",
   initialScale: 1,
 };
@@ -102,15 +115,11 @@ const jsonLd = {
   ],
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${GeistSans.variable} ${jetbrainsMono.variable}`}
+      className={`${instrumentSans.variable} ${instrumentSerif.variable} ${fragmentMono.variable}`}
     >
       <head>
         <script
@@ -118,14 +127,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body>
-        {children}
-        <script
-          src="https://everdesk.allensaji.dev/embed.js"
-          data-everdesk-key="pk_px402_12f60c3692b88f9944200552"
-          async
-        />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

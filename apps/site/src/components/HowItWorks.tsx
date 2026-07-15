@@ -1,88 +1,68 @@
-"use client";
+import Image from "next/image";
+import { ArrowDownRight } from "lucide-react";
 
-import { useEffect, useRef } from "react";
-import { useInView, useReducedMotion } from "motion/react";
+const FLOW = [
+  ["01", "Request", "Agent asks the protected API for data.", "GET /data"],
+  ["02", "Challenge", "Server returns price, destination token, and expiry.", "402"],
+  ["03", "Settle", "Client signs a USDC transfer through MagicBlock.", "private rail"],
+  ["04", "Redact", "The TEE resolves the recipient away from public view.", "TEE"],
+  ["05", "Verify", "Subscriber matches the settlement by clientRefId.", "base chain"],
+  ["06", "Respond", "The same request retries and receives the paid result.", "200 OK"],
+] as const;
 
 export function HowItWorks() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const reduce = useReducedMotion();
-  const inView = useInView(videoRef, { amount: 0.5, once: true });
-
-  useEffect(() => {
-    if (reduce) return;
-    if (inView && videoRef.current) {
-      videoRef.current.play().catch(() => {
-        // autoplay blocked; user will see the poster, that's fine
-      });
-    }
-  }, [inView, reduce]);
-
   return (
-    <section id="how" className="relative">
-      <div className="mx-auto max-w-[1100px] px-6 py-24 sm:py-32">
-        <SectionHead label="protocol" title="How it works" />
-
-        <p className="mt-6 max-w-[68ch] text-[17px] leading-[1.65] text-muted-strong">
-          The server returns 402 with an HMAC-signed token. The client pays USDC
-          through MagicBlock&rsquo;s private rail, encrypting the recipient into
-          a TEE box. The server&rsquo;s subscriber polls the queue PDA, matches
-          the payment by{" "}
-          <code className="font-mono text-[15px] text-fg bg-surface px-1.5 py-0.5 rounded">
-            clientRefId
-          </code>
-          , and serves the response on retry. Stateless server, private
-          destination, USDC settlement.
-        </p>
-
-        <div className="mt-12 rounded-lg border border-border bg-surface overflow-hidden">
-          <video
-            ref={videoRef}
-            poster="/diagrams/px402-static.png"
-            preload="metadata"
-            muted
-            playsInline
-            loop
-            controls={false}
-            className="w-full h-auto block aspect-video object-contain bg-bg"
-            aria-label="px402 protocol animated diagram. Agent pays USDC, MagicBlock TEE decrypts and routes, server returns 200 OK."
-          >
-            <source src="/diagrams/px402-animated.mp4" type="video/mp4" />
-            <track kind="descriptions" />
-          </video>
+    <section id="how" className="border-b border-line bg-paper-bright">
+      <div className="page-shell py-20 sm:py-28">
+        <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+          <SectionHead label="protocol trace" title="One request. Six verifiable steps." />
+          <p className="max-w-[58ch] text-[18px] leading-[1.6] text-quiet lg:justify-self-end">
+            px402 keeps the familiar HTTP payment loop. The private rail changes what settlement
+            exposes, not how the client handles a 402.
+          </p>
         </div>
 
-        <p className="mt-4 text-[13px] text-muted font-mono">
-          frame-accurate render. base-chain pay → TEE decrypt → queue crank →
-          server retry.
-        </p>
+        <ol className="mt-12 border-t border-ink">
+          {FLOW.map(([number, title, body, signal]) => (
+            <li
+              key={number}
+              className="grid gap-3 border-b border-line py-5 sm:grid-cols-[54px_150px_1fr_120px] sm:items-center sm:gap-6"
+            >
+              <span className="font-mono text-[11px] text-private">{number}</span>
+              <h3 className="text-[20px] font-semibold text-ink">{title}</h3>
+              <p className="max-w-[56ch] text-[16px] leading-6 text-quiet">{body}</p>
+              <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-ink sm:text-right">
+                {signal}
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        <details className="group mt-8 border border-line bg-paper">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 font-mono text-[11px] uppercase tracking-[0.06em] text-ink marker:content-none">
+            Open the full protocol sequence
+            <ArrowDownRight className="transition-transform group-open:rotate-90" size={16} />
+          </summary>
+          <div className="border-t border-line bg-paper-bright p-3 sm:p-6">
+            <Image
+              src="/diagrams/px402-static.png"
+              alt="Detailed px402 protocol sequence from request through private settlement and response"
+              width={1920}
+              height={1080}
+              className="h-auto w-full"
+            />
+          </div>
+        </details>
       </div>
     </section>
   );
 }
 
-export function SectionHead({
-  label,
-  title,
-  warn = false,
-}: {
-  label: string;
-  title: string;
-  warn?: boolean;
-}) {
+export function SectionHead({ label, title }: { label: string; title: string }) {
   return (
     <div>
-      <div
-        className={`font-mono text-[12px] tracking-[0.04em] uppercase ${
-          warn ? "text-warn" : "text-accent"
-        }`}
-      >
-        {label}
-      </div>
-      <h2
-        className={`mt-3 text-[28px] sm:text-[40px] font-semibold tracking-[-0.02em] leading-[1.15] ${
-          warn ? "text-warn" : "text-fg"
-        }`}
-      >
+      <div className="rule-label text-private">{label}</div>
+      <h2 className="mt-5 max-w-[14ch] font-display text-[44px] leading-[0.98] tracking-[-0.035em] text-ink sm:text-[60px]">
         {title}
       </h2>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Copy, Check } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertCircle, Check, Copy } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export function CopyButton({
@@ -13,39 +13,86 @@ export function CopyButton({
   label?: string;
   className?: string;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<"idle" | "copied" | "error">("idle");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const onCopy = useCallback(() => {
-    void navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      const t = setTimeout(() => setCopied(false), 1400);
-      return () => clearTimeout(t);
-    });
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const onCopy = useCallback(async () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    try {
+      await copyText(text);
+      setStatus("copied");
+    } catch {
+      setStatus("error");
+    }
+    timerRef.current = setTimeout(() => setStatus("idle"), 1600);
   }, [text]);
+
+  const copied = status === "copied";
+  const failed = status === "error";
 
   return (
     <button
       type="button"
       onClick={onCopy}
-      aria-label={copied ? "Copied" : `Copy ${label}`}
+      aria-label={copied ? `${label} copied` : failed ? `Could not copy ${label}` : `Copy ${label}`}
       className={cn(
-        "group inline-flex items-center gap-1.5 px-2 py-1 rounded text-[12px] font-mono",
-        "text-muted hover:text-fg hover:bg-surface-2",
-        "transition-colors cursor-pointer",
+        "group inline-flex min-h-11 items-center gap-2 px-3 font-mono text-[10px] uppercase tracking-[0.05em]",
+        "text-quiet transition-colors hover:bg-private-soft hover:text-private",
         className,
       )}
     >
       {copied ? (
         <>
-          <Check size={13} strokeWidth={2} className="text-accent" />
-          <span className="text-accent">copied</span>
+          <Check size={14} strokeWidth={2} className="text-private" />
+          <span className="text-private" aria-live="polite">
+            copied
+          </span>
+        </>
+      ) : failed ? (
+        <>
+          <AlertCircle size={14} strokeWidth={1.8} className="text-risk" />
+          <span className="text-risk" aria-live="polite">
+            copy failed
+          </span>
         </>
       ) : (
         <>
-          <Copy size={13} strokeWidth={1.75} />
+          <Copy size={14} strokeWidth={1.75} />
           <span>{label}</span>
         </>
       )}
     </button>
   );
+}
+
+async function copyText(text: string): Promise<void> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch {
+    // Fall through to the selection-based copy path.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("Copy command was rejected");
+  }
 }

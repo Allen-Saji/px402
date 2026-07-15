@@ -5,72 +5,24 @@ import { CodeBlock } from "./CodeBlock";
 
 const HONO_CODE = `import { Hono } from "hono";
 import { px402 } from "@px402/hono";
-import { PrivateTransferSubscriber } from "@px402/core";
-
-const subscriber = new PrivateTransferSubscriber({
-  rpcUrl,        // base RPC
-  queuePda,
-  mint,
-  receiverWallet,
-});
-await subscriber.start();
 
 const app = new Hono();
-app.use(px402({
-  serverSecret: process.env.PX402_SECRET!,
-  paymentAddress: SERVER_WALLET,
-  pricing: { "/api/sentiment": "10000" }, // micro-USDC
-  subscriber,
-}));
-
-app.get("/api/sentiment", (c) =>
-  c.json({ signal: "bullish" }),
-);`;
+app.use(px402(paymentConfig));
+app.get("/api/sentiment", handler);`;
 
 const EXPRESS_CODE = `import express from "express";
 import { px402 } from "@px402/express";
-import { PrivateTransferSubscriber } from "@px402/core";
-
-const subscriber = new PrivateTransferSubscriber({
-  rpcUrl,        // base RPC
-  queuePda,
-  mint,
-  receiverWallet,
-});
-await subscriber.start();
 
 const app = express();
-app.use(px402({
-  serverSecret: process.env.PX402_SECRET!,
-  paymentAddress: SERVER_WALLET,
-  pricing: { "/api/sentiment": "10000" }, // micro-USDC
-  subscriber,
-}));
-
-app.get("/api/sentiment", (_req, res) =>
-  res.json({ signal: "bullish" }),
-);`;
+app.use(px402(paymentConfig));
+app.get("/api/sentiment", handler);`;
 
 const NEXT_CODE = `// app/api/sentiment/route.ts
 import { NextResponse } from "next/server";
 import { withPx402 } from "@px402/next";
-import { PrivateTransferSubscriber } from "@px402/core";
-
-const subscriber = new PrivateTransferSubscriber({
-  rpcUrl,        // base RPC
-  queuePda,
-  mint,
-  receiverWallet,
-});
-await subscriber.start();
 
 export const GET = withPx402(
-  {
-    serverSecret: process.env.PX402_SECRET!,
-    paymentAddress: SERVER_WALLET,
-    pricing: { "/api/sentiment": "10000" }, // micro-USDC
-    subscriber,
-  },
+  paymentConfig,
   () => NextResponse.json({ signal: "bullish" }),
 );`;
 
@@ -84,8 +36,20 @@ const FRAMEWORKS: ReadonlyArray<{
   code: string;
 }> = [
   { id: "hono", label: "Hono", pkg: "@px402/hono", filename: "server.ts", code: HONO_CODE },
-  { id: "express", label: "Express", pkg: "@px402/express", filename: "server.ts", code: EXPRESS_CODE },
-  { id: "next", label: "Next.js", pkg: "@px402/next", filename: "app/api/sentiment/route.ts", code: NEXT_CODE },
+  {
+    id: "express",
+    label: "Express",
+    pkg: "@px402/express",
+    filename: "server.ts",
+    code: EXPRESS_CODE,
+  },
+  {
+    id: "next",
+    label: "Next.js",
+    pkg: "@px402/next",
+    filename: "app/api/sentiment/route.ts",
+    code: NEXT_CODE,
+  },
 ] as const;
 
 export function ServerSnippet() {
@@ -96,7 +60,7 @@ export function ServerSnippet() {
       <div
         role="tablist"
         aria-label="Server framework"
-        className="flex items-center gap-1 mb-3 border border-border rounded-md bg-surface/50 p-1 w-fit"
+        className="mb-3 flex w-fit max-w-full items-center border border-ink bg-paper-bright p-1"
       >
         {FRAMEWORKS.map((fw) => {
           const isActive = active === fw.id;
@@ -109,10 +73,10 @@ export function ServerSnippet() {
               id={`tab-${fw.id}`}
               onClick={() => setActive(fw.id)}
               className={[
-                "font-mono text-[12px] px-3 py-1.5 rounded transition-colors cursor-pointer",
+                "min-h-11 px-3 font-mono text-[11px] transition-colors cursor-pointer",
                 isActive
-                  ? "bg-surface-2 text-fg"
-                  : "text-muted hover:text-fg hover:bg-surface-2/50",
+                  ? "bg-ink text-paper-bright"
+                  : "text-quiet hover:bg-private-soft hover:text-private",
               ].join(" ")}
             >
               {fw.label}
@@ -130,9 +94,8 @@ export function ServerSnippet() {
           hidden={active !== fw.id}
         >
           <CodeBlock filename={fw.filename} code={fw.code} />
-          <p className="mt-2 font-mono text-[11px] text-muted">
-            <span className="text-muted-strong">pnpm add</span>{" "}
-            {fw.pkg} @px402/core
+          <p className="mt-3 overflow-x-auto font-mono text-[11px] text-quiet">
+            <span className="text-private">pnpm add</span> {fw.pkg} @px402/core
           </p>
         </div>
       ))}

@@ -3,52 +3,59 @@ import { ExternalLink } from "lucide-react";
 import { SectionHead } from "./HowItWorks";
 import { PACKAGES, SITE } from "@/lib/site";
 
+const ROLE_BY_PACKAGE: Record<string, string> = {
+  "@px402/core": "protocol",
+  "@px402/hono": "provider",
+  "@px402/express": "provider",
+  "@px402/next": "provider",
+  "@px402/client": "agent",
+  "@px402/mcp": "agent tool",
+};
+
 export function Packages() {
   return (
-    <section id="packages" className="relative border-t border-border/60">
-      <div className="mx-auto max-w-[1100px] px-6 py-24 sm:py-32">
-        <SectionHead label="packages" title="Six packages. Pick what you need." />
+    <section id="packages" className="border-b border-line bg-paper-bright">
+      <div className="page-shell py-20 sm:py-28">
+        <SectionHead label="package index" title="Install only what your role needs." />
 
-        <p className="mt-6 max-w-[60ch] text-[17px] leading-[1.65] text-muted-strong">
-          Adopters install one adapter for their framework plus the client. The
-          surface stays small on purpose.
+        <p className="mt-7 max-w-[58ch] text-[18px] leading-[1.6] text-quiet">
+          The protocol stays modular. Providers choose one framework adapter. Agent builders use the
+          client or MCP server. Core carries the shared verification machinery.
         </p>
 
-        <div className="mt-10 border-t border-border">
-          {PACKAGES.map((pkg) => (
+        <div className="mt-12 border-t border-ink">
+          {PACKAGES.map((pkg, index) => (
             <div
               key={pkg.name}
-              className="grid grid-cols-1 sm:grid-cols-[260px_1fr] gap-2 sm:gap-8 items-start sm:items-center px-2 sm:px-4 py-5 border-b border-border hover:bg-surface/40 transition-colors"
+              className="grid gap-3 border-b border-line py-5 transition-colors hover:bg-private-soft/55 sm:grid-cols-[54px_200px_120px_1fr] sm:items-center sm:gap-6 sm:px-3"
             >
-              <div className="font-mono text-[14px] text-accent">
-                {pkg.name}
+              <div className="font-mono text-[10px] text-quiet">0{index + 1}</div>
+              <div className="font-mono text-[13px] text-private">{pkg.name}</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.07em] text-risk">
+                {ROLE_BY_PACKAGE[pkg.name]}
               </div>
-              <div className="text-[15px] text-muted-strong leading-[1.6]">
-                {pkg.purpose}
-              </div>
+              <div className="text-[15px] leading-[1.6] text-quiet">{pkg.purpose}</div>
             </div>
           ))}
         </div>
 
-        <p className="mt-6 text-[14px] text-muted font-mono leading-[1.65]">
-          on npm:{" "}
+        <p className="mt-7 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-[0.05em] text-quiet">
           <Link
-            href="https://www.npmjs.com/org/px402"
+            href={SITE.npmOrgUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 text-fg hover:text-accent transition-colors cursor-pointer underline-offset-2 hover:underline"
+            className="inline-flex min-h-11 items-center gap-1.5 text-link text-ink transition-colors hover:text-private"
           >
-            npmjs.com/org/px402
+            npm package index
             <ExternalLink size={12} strokeWidth={1.75} />
           </Link>
-          {" · "}source:{" "}
           <Link
             href={SITE.githubUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 text-fg hover:text-accent transition-colors cursor-pointer underline-offset-2 hover:underline"
+            className="inline-flex min-h-11 items-center gap-1.5 text-link text-ink transition-colors hover:text-private"
           >
-            github.com/{SITE.githubRepo}
+            source repository
             <ExternalLink size={12} strokeWidth={1.75} />
           </Link>
         </p>

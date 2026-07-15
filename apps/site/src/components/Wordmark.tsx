@@ -9,18 +9,13 @@ export function Wordmark({
   accentDigits?: boolean;
   className?: string;
 }) {
-  const sizeClass =
-    size === "sm" ? "text-[15px]" : size === "lg" ? "text-2xl" : "text-[17px]";
+  const sizeClass = size === "sm" ? "text-[15px]" : size === "lg" ? "text-2xl" : "text-[17px]";
   return (
     <span
-      className={cn(
-        "font-mono font-bold tracking-[-0.02em] lowercase select-none",
-        sizeClass,
-        className,
-      )}
+      className={cn("font-mono tracking-[-0.04em] lowercase select-none", sizeClass, className)}
     >
-      <span className="text-fg">px</span>
-      <span className={accentDigits ? "text-accent" : "text-fg"}>402</span>
+      <span className="text-ink">px</span>
+      <span className={accentDigits ? "text-private" : "text-ink"}>402</span>
     </span>
   );
 }

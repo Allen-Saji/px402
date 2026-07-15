@@ -15,19 +15,19 @@ export const SITE = {
   description:
     "Private agentic payments. An HTTP layer over MagicBlock's Private Ephemeral Rollups. Agents pay USDC for APIs. The recipient stays hidden.",
 
-  // Deployment URLs — override per-fork via NEXT_PUBLIC_* env vars.
+  // Deployment URLs - override per-fork via NEXT_PUBLIC_* env vars.
   url: env("NEXT_PUBLIC_SITE_URL", "https://px402.allensaji.dev"),
   demoApiBase: env("NEXT_PUBLIC_DEMO_API_BASE", "https://api.px402.allensaji.dev"),
 
-  // Project repo (fixed — the canonical upstream).
+  // Project repo (fixed - the canonical upstream).
   githubRepo: "Allen-Saji/px402",
   githubUrl: "https://github.com/Allen-Saji/px402",
 
-  // npm org — published @px402/* packages.
+  // npm org - published @px402/* packages.
   npmOrgUrl: "https://www.npmjs.com/org/px402",
-  latestVersion: "0.1.0",
+  latestVersion: "0.1.1",
 
-  // Creator credit — overridable for forks.
+  // Creator credit - overridable for forks.
   authorName: env("NEXT_PUBLIC_AUTHOR_NAME", "Allen Saji"),
   authorUrl: env("NEXT_PUBLIC_AUTHOR_URL", "https://allensaji.dev"),
   twitterHandle: env("NEXT_PUBLIC_TWITTER_HANDLE", "@SajiBhai011"),

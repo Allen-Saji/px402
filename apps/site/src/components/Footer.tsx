@@ -5,17 +5,17 @@ import { SITE } from "@/lib/site";
 
 export function Footer() {
   return (
-    <footer className="border-t border-border/60">
-      <div className="mx-auto max-w-[1100px] px-6 py-12 sm:py-16 grid gap-10 sm:grid-cols-[1fr_auto_auto] items-start">
+    <footer className="bg-ink text-paper-bright">
+      <div className="page-shell grid items-start gap-10 py-12 sm:grid-cols-[1fr_auto_auto] sm:py-16">
         <div>
-          <Wordmark size="base" />
-          <p className="mt-4 text-[13px] text-muted leading-[1.65] max-w-[40ch] font-mono">
+          <Wordmark size="lg" accentDigits className="[&_.text-ink]:text-paper-bright" />
+          <p className="mt-4 max-w-[42ch] font-mono text-[11px] leading-5 text-paper-deep">
             Apache-2.0 licensed. Built on{" "}
             <Link
               href={SITE.magicblockUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-fg hover:text-accent transition-colors cursor-pointer underline-offset-2 hover:underline"
+              className="inline-flex min-h-11 items-center text-link text-paper-bright transition-colors hover:text-private-bright"
             >
               MagicBlock PER
             </Link>{" "}
@@ -24,7 +24,7 @@ export function Footer() {
               href={SITE.x402Url}
               target="_blank"
               rel="noreferrer"
-              className="text-fg hover:text-accent transition-colors cursor-pointer underline-offset-2 hover:underline"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center text-link text-paper-bright transition-colors hover:text-private-bright"
             >
               x402
             </Link>
@@ -32,12 +32,12 @@ export function Footer() {
           </p>
         </div>
 
-        <nav className="flex flex-col gap-2.5 font-mono text-[13px]">
+        <nav className="flex flex-col font-mono text-[11px] uppercase tracking-[0.05em]">
           <Link
             href={`${SITE.githubUrl}#readme`}
             target="_blank"
             rel="noreferrer"
-            className="text-muted hover:text-fg transition-colors cursor-pointer inline-flex items-center gap-1.5"
+            className="inline-flex min-h-11 items-center gap-1.5 text-paper-deep transition-colors hover:text-private-bright"
           >
             docs
             <ExternalLink size={11} strokeWidth={1.75} />
@@ -47,7 +47,7 @@ export function Footer() {
             target="_blank"
             rel="noreferrer"
             aria-label="GitHub"
-            className="text-muted hover:text-fg transition-colors cursor-pointer inline-flex items-center gap-1.5"
+            className="inline-flex min-h-11 items-center gap-1.5 text-paper-deep transition-colors hover:text-private-bright"
           >
             <Github size={13} strokeWidth={1.75} />
             github
@@ -56,21 +56,21 @@ export function Footer() {
             href={`${SITE.githubUrl}/tree/main/packages/mcp`}
             target="_blank"
             rel="noreferrer"
-            className="text-muted hover:text-fg transition-colors cursor-pointer inline-flex items-center gap-1.5"
+            className="inline-flex min-h-11 items-center gap-1.5 text-paper-deep transition-colors hover:text-private-bright"
           >
             mcp
             <ExternalLink size={11} strokeWidth={1.75} />
           </Link>
         </nav>
 
-        <div className="font-mono text-[13px] text-muted leading-[1.7]">
+        <div className="font-mono text-[11px] leading-5 text-paper-deep">
           <div>
             Built by{" "}
             <Link
               href={SITE.authorUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-fg hover:text-accent transition-colors cursor-pointer underline-offset-2 hover:underline"
+              className="inline-flex min-h-11 items-center text-link text-paper-bright transition-colors hover:text-private-bright"
             >
               {SITE.authorName}
             </Link>
@@ -81,7 +81,7 @@ export function Footer() {
               href={SITE.magicblockUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-fg hover:text-accent transition-colors cursor-pointer underline-offset-2 hover:underline"
+              className="inline-flex min-h-11 items-center text-link text-paper-bright transition-colors hover:text-private-bright"
             >
               MagicBlock
             </Link>
@@ -90,7 +90,7 @@ export function Footer() {
             href={SITE.twitterUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 inline-block text-muted hover:text-fg transition-colors cursor-pointer"
+            className="mt-2 inline-flex min-h-11 items-center text-paper-deep transition-colors hover:text-private-bright"
           >
             {SITE.twitterHandle}
           </Link>

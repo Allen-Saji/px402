@@ -7,23 +7,20 @@ import { DemoCallout } from "@/components/DemoCallout";
 import { PrivacyProof } from "@/components/PrivacyProof";
 import { HonestScope } from "@/components/HonestScope";
 import { Footer } from "@/components/Footer";
-import { getStarCount } from "@/lib/github";
 
 export const revalidate = 3600;
 
-export default async function Home() {
-  const stars = await getStarCount();
-
+export default function Home() {
   return (
     <>
-      <Nav stars={stars} />
+      <Nav />
       <main>
-        <Hero stars={stars} />
+        <Hero />
+        <PrivacyProof />
         <HowItWorks />
         <Integration />
-        <Packages />
         <DemoCallout />
-        <PrivacyProof />
+        <Packages />
         <HonestScope />
       </main>
       <Footer />
